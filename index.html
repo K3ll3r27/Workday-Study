@@ -1120,13 +1120,7 @@ function viewDashboard(){
       </div>
     </aside>`;
 
-  const perPersonCerts = (() => {
-    const byEmployee = {};
-    loadCertificates().forEach(c => {
-      if (!byEmployee[c.employeeId] || c.submittedAt > byEmployee[c.employeeId].submittedAt) byEmployee[c.employeeId] = c;
-    });
-    return Object.values(byEmployee).sort((a,b) => b.submittedAt - a.submittedAt);
-  })();
+  const perPersonCerts = loadCertificates().slice().sort((a,b) => b.submittedAt - a.submittedAt);
   const activeCertIdx = perPersonCerts.length ? (state.certCarouselIndex % perPersonCerts.length) : 0;
   const activeCert = perPersonCerts[activeCertIdx];
 
@@ -2027,8 +2021,7 @@ function startApp(){
   setupActivityTracking();
   setInterval(() => {
     if (state.view !== "dashboard") return;
-    const uniqueEmployeeIds = new Set(loadCertificates().map(c => c.employeeId));
-    if (uniqueEmployeeIds.size > 1) {
+    if (loadCertificates().length > 1) {
       state.certCarouselIndex = state.certCarouselIndex + 1;
       render();
     }
