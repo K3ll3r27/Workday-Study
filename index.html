@@ -1,0 +1,728 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>studyday — Workday HCM Study</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Sora:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap');
+  :root{
+    --blue:#2C69B6; --blueDark:#12283F; --orange:#F4990B; --amber:#FDBA58;
+    --bg:#F7F9FC; --surface:#FFFFFF; --gray:#6B7785; --border:#E3E8EF; --green:#1E9E6B; --red:#D0483F;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);font-family:'Inter',Arial,sans-serif;color:var(--blueDark);}
+  h1,h2,h3,.wd-h{font-family:'Sora','Segoe UI',sans-serif;color:var(--blueDark);}
+  button{font-family:inherit;}
+  .wd-header{background:var(--surface);border-bottom:1px solid var(--border);}
+  .wd-header-inner{max-width:1000px;margin:0 auto;padding:14px 20px;display:flex;align-items:center;justify-content:space-between;}
+  .logo-btn{display:flex;align-items:center;gap:10px;background:none;border:none;cursor:pointer;}
+  main{max-width:1000px;margin:0 auto;padding:28px 20px 80px;}
+  .btn-primary{background:linear-gradient(135deg,var(--orange),var(--amber));color:var(--blueDark);font-weight:700;border:none;border-radius:10px;padding:10px 18px;cursor:pointer;font-size:14px;transition:transform .15s,box-shadow .15s;}
+  .btn-primary:hover{transform:translateY(-1px);box-shadow:0 6px 16px rgba(244,153,11,.35);}
+  .btn-primary:disabled{opacity:.5;cursor:default;transform:none;box-shadow:none;}
+  .btn-secondary{background:var(--surface);color:var(--blue);font-weight:600;border:1.5px solid var(--blue);border-radius:10px;padding:9px 16px;cursor:pointer;font-size:14px;}
+  .btn-secondary:hover{background:#EEF4FC;}
+  .btn-danger{background:var(--red);color:#fff;border:none;border-radius:10px;padding:9px 16px;cursor:pointer;font-weight:700;font-size:14px;}
+  .btn-ghost{background:transparent;color:var(--gray);border:none;cursor:pointer;font-size:14px;display:inline-flex;align-items:center;gap:6px;padding:6px;}
+  .btn-ghost:hover{color:var(--blueDark);}
+  .wd-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;transition:box-shadow .15s,transform .15s;}
+  .wd-card.clickable:hover{box-shadow:0 8px 24px rgba(18,40,63,.08);transform:translateY(-2px);cursor:pointer;}
+  .wd-input{border:1.5px solid var(--border);border-radius:8px;padding:10px 12px;font-size:14px;width:100%;color:var(--blueDark);background:#fff;}
+  .wd-input:focus{outline:none;border-color:var(--blue);}
+  .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--blueDark);color:#fff;padding:10px 20px;border-radius:999px;font-size:13px;box-shadow:0 10px 30px rgba(0,0,0,.25);z-index:50;}
+  .grid-sets{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:16px;}
+  .grid-modes{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;}
+  .hero{position:relative;padding:36px 32px;border-radius:18px;background:var(--blueDark);overflow:hidden;margin-bottom:32px;}
+  .icon-box{width:34px;height:34px;border-radius:9px;background:#EEF4FC;display:flex;align-items:center;justify-content:center;}
+  .progress-track{flex:1;height:8px;background:var(--border);border-radius:99px;overflow:hidden;}
+  .progress-fill{height:100%;background:linear-gradient(90deg,var(--orange),var(--amber));transition:width .3s ease;}
+  .flip-scene{perspective:1200px;cursor:pointer;margin-top:20px;height:320px;}
+  .flip-inner{position:relative;width:100%;height:100%;transform-style:preserve-3d;transition:transform .45s cubic-bezier(.4,.2,.2,1);}
+  .flip-inner.flipped{transform:rotateY(180deg);}
+  .flip-face{position:absolute;inset:0;backface-visibility:hidden;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:32px;text-align:center;}
+  .flip-face.back{transform:rotateY(180deg);background:var(--blueDark);color:#fff;}
+  .flip-face.front{background:var(--surface);}
+  .modal-overlay{position:fixed;inset:0;background:rgba(18,40,63,.45);display:flex;align-items:center;justify-content:center;z-index:60;}
+  .modal-box{background:#fff;border-radius:14px;padding:24px;max-width:340px;width:90%;}
+  .match-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;}
+  .match-tile{min-height:90px;padding:10px;font-size:12.5px;cursor:pointer;text-align:left;line-height:1.35;}
+  .match-tile.hidden{visibility:hidden;}
+  .option-btn{text-align:left;padding:14px 16px;border-radius:10px;border:1.5px solid var(--border);background:#fff;cursor:pointer;font-size:14px;display:flex;justify-content:space-between;align-items:center;width:100%;}
+  .row-center{display:flex;justify-content:center;gap:14px;}
+  .card-editor-row{display:grid;grid-template-columns:28px 1fr 1fr 32px;gap:10px;align-items:center;padding:14px;}
+  @media (max-width:600px){
+    .card-editor-row{grid-template-columns:20px 1fr 1fr 28px;}
+    .match-grid{grid-template-columns:repeat(2,1fr);}
+  }
+  @media (prefers-reduced-motion: reduce){ .wd-card,.btn-primary,.flip-inner{transition:none!important;} }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script>
+/* ---------------- Data / starter content ---------------- */
+const STARTER_SET = {
+  name: "Workday HCM Fundamentals",
+  description: "Core vocabulary for the Workday HCM certification exam.",
+  cards: [
+    ["Supervisory Organization","The core org type in Workday HCM that contains workers and is led by a manager; the backbone of the staffing model."],
+    ["Business Process","A configurable series of steps (approvals, actions, notifications) that routes a transaction, like Hire or Change Job, through Workday."],
+    ["EIB (Enterprise Interface Builder)","A tool for bulk-loading or extracting data into/out of Workday using a spreadsheet template, without custom code."],
+    ["Staffing Model","Determines whether a supervisory organization manages Positions, Jobs, or a hybrid of both for headcount and hiring."],
+    ["Security Group","A collection of users or a rule that determines what a person can view or edit in Workday, assigned via domain and business process policies."],
+    ["Domain Security Policy","Controls access to a functional area of data (like Compensation) by mapping security groups to view/modify permissions."],
+    ["Calculated Field","A custom field built from existing Workday data using functions, used in reports and integrations without changing the underlying schema."],
+    ["Organization Assignment","The set of organizations (cost center, region, company, etc.) a worker or position is tied to for reporting and security."],
+    ["Position Management","A staffing model where each seat (position) is individually defined and filled, commonly used for regulated or headcount-controlled roles."],
+    ["Job Management","A staffing model where workers are hired into a job profile rather than a specific position, offering more headcount flexibility."],
+    ["Compensation Package","A group of compensation plans (salary, bonus, stock) eligible to be assigned to workers in a given grade or job profile."],
+    ["Condition Rule","A true/false rule used to control when a step in a business process should run or a field should display."],
+    ["Report Writer","Workday's tool for building custom reports from data sources, business objects, and calculated fields."],
+    ["Integration System","A configured connection point (like a Core Connector or Studio integration) that moves data between Workday and external systems."],
+    ["Tenant","A customer's dedicated, isolated instance of Workday, containing its own configuration and data."],
+    ["Worklet","A small, configurable panel on the Workday home page that gives quick access to tasks or information, like Team or Absence."],
+    ["Cost Center","An organization type used to track and report on budgeted expenses, often tied to worker compensation costs."],
+    ["Business Process Definition","The specific configuration of steps, approvers, and conditions attached to a business process type for a given context."],
+    ["Location Hierarchy","A structured grouping of locations used for reporting, security, and organizational assignment."],
+    ["Custom Report","A report built by a customer (rather than delivered by Workday) using Report Writer to meet a specific business need."],
+  ]
+};
+
+const STORAGE_KEY = "wd_study_sets_v1";
+
+function uid(){ return Math.random().toString(36).slice(2,10) + Date.now().toString(36).slice(-4); }
+function shuffle(arr){ const a=[...arr]; for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; }
+function esc(s){ const d=document.createElement("div"); d.innerText = s==null? "": s; return d.innerHTML; }
+
+/* ---------------- Local storage helpers ---------------- */
+function loadSets(){
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch(e) {}
+  const starter = {
+    id: uid(), name: STARTER_SET.name, description: STARTER_SET.description,
+    cards: STARTER_SET.cards.map(([term,definition]) => ({id: uid(), term, definition})),
+    updatedAt: Date.now()
+  };
+  const sets = [starter];
+  saveSets(sets);
+  return sets;
+}
+function saveSets(sets){
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(sets)); } catch(e) {}
+}
+
+/* ---------------- Icons (minimal inline SVG) ---------------- */
+const ICONS = {
+  plus:'<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>',
+  back:'<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>',
+  pencil:'<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4v16h16v-7"/><path d="M17.5 2.5a2.1 2.1 0 0 1 3 3L12 14l-4 1 1-4Z"/></svg>',
+  trash:'<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2m3 0-1 14a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1L4 6"/></svg>',
+  check:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>',
+  x:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>',
+  shuffle:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 4 3 3-3 3M2 7h6l2 3M18 20l3-3-3-3M2 17h6l2-3m4 3h4l3-3M14 7h4l3 3"/></svg>',
+  trophy:'<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0V4Z"/><path d="M7 6H4a2 2 0 0 0 2 4M17 6h3a2 2 0 0 1-2 4"/></svg>',
+  layers:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 2 9 5-9 5-9-5 9-5ZM3 12l9 5 9-5M3 17l9 5 9-5"/></svg>',
+  book:'<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20V4H6.5A2.5 2.5 0 0 0 4 6.5v13Z"/></svg>',
+  grid:'<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>',
+  chevron:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>',
+  redo:'<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>',
+  lock:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>',
+};
+
+/* ---------------- Admin gate ---------------- */
+const ADMIN_PASSCODE_HASH = "73695443961c6e58a8fcfd2d263cf5ef355dfd56f1d96dfc1c18ec0613253e09";
+async function sha256Hex(str){
+  const enc = new TextEncoder().encode(str);
+  const buf = await crypto.subtle.digest("SHA-256", enc);
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,"0")).join("");
+}
+function renderAdminModal(){
+  if (!state.adminModalOpen) return "";
+  if (!state.adminUnlocked) {
+    return `
+      <div class="modal-overlay" data-action="close-admin-bg">
+        <div class="modal-box" data-stop="1">
+          <h3 class="wd-h" style="font-size:16px;margin:0 0 4px;display:flex;align-items:center;gap:8px;">${ICONS.lock} Admin access</h3>
+          <p style="font-size:13px;color:var(--gray);margin:0 0 14px;">Enter the passcode to continue.</p>
+          <input class="wd-input" type="password" id="admin-passcode-input" placeholder="Passcode" autocomplete="off">
+          ${state.adminError ? `<p style="color:var(--red);font-size:12.5px;margin:8px 0 0;">Incorrect passcode.</p>` : ""}
+          <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px;">
+            <button class="btn-secondary" data-action="close-admin">Cancel</button>
+            <button class="btn-primary" data-action="submit-admin-passcode">Unlock</button>
+          </div>
+        </div>
+      </div>`;
+  }
+  return `
+    <div class="modal-overlay" data-action="close-admin-bg">
+      <div class="modal-box" data-stop="1" style="max-width:420px;">
+        <h3 class="wd-h" style="font-size:16px;margin:0 0 4px;display:flex;align-items:center;gap:8px;">${ICONS.lock} Admin</h3>
+        <p style="font-size:13px;color:var(--gray);margin:0 0 16px;">To make changes to this site, open a Claude conversation and describe what you want updated — Claude edits the code and pushes it to the repo, then this page redeploys automatically.</p>
+        <a href="https://claude.ai/new" target="_blank" rel="noopener" class="btn-primary" style="display:inline-flex;align-items:center;gap:6px;text-decoration:none;">Open Claude to make a change</a>
+        <div style="display:flex;justify-content:flex-end;margin-top:16px;">
+          <button class="btn-secondary" data-action="close-admin">Close</button>
+        </div>
+      </div>
+    </div>`;
+}
+
+function logoMark(size){
+  return `<svg width="${size}" height="${size}" viewBox="0 0 40 40">
+    <defs><linearGradient id="lg1" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#FDBA58"/><stop offset="100%" stop-color="#F4990B"/>
+    </linearGradient></defs>
+    <circle cx="20" cy="20" r="18" fill="#12283F"/>
+    <path d="M 9 22 A 12 12 0 0 1 31 22" fill="none" stroke="url(#lg1)" stroke-width="4" stroke-linecap="round"/>
+  </svg>`;
+}
+function progressArc(pct, size, stroke){
+  size = size||44; stroke = stroke||5;
+  const r=(size-stroke)/2, c=2*Math.PI*r, offset=c*(1-pct/100);
+  const gid = "arc"+Math.round(Math.random()*99999);
+  return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
+    <defs><linearGradient id="${gid}" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#F4990B"/><stop offset="100%" stop-color="#FDBA58"/>
+    </linearGradient></defs>
+    <circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="#E3E8EF" stroke-width="${stroke}"/>
+    <circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="url(#${gid})" stroke-width="${stroke}" stroke-linecap="round"
+      stroke-dasharray="${c}" stroke-dashoffset="${offset}" transform="rotate(-90 ${size/2} ${size/2})" style="transition:stroke-dashoffset .5s ease"/>
+    <text x="50%" y="50%" text-anchor="middle" dy="0.35em" font-size="${size*0.28}" font-weight="700" fill="#12283F" font-family="Sora,sans-serif">${Math.round(pct)}</text>
+  </svg>`;
+}
+
+/* ---------------- App state ---------------- */
+let state = {
+  sets: loadSets(),
+  view: "dashboard",
+  activeSetId: null,
+  editorDraft: null,
+  toast: null,
+  confirmDeleteId: null,
+  // session state per mode, rebuilt on entry
+  session: null,
+  adminModalOpen: false,
+  adminUnlocked: false,
+  adminError: false,
+};
+
+function showToast(msg){
+  state.toast = msg;
+  render();
+  setTimeout(() => { state.toast = null; renderToastOnly(); }, 2200);
+}
+function renderToastOnly(){
+  const el = document.getElementById("toast-slot");
+  if (el) el.innerHTML = "";
+}
+
+function getActiveSet(){
+  return state.sets.find(s => s.id === state.activeSetId) || null;
+}
+
+function persistActiveSetEdit(setObj){
+  const idx = state.sets.findIndex(s => s.id === setObj.id);
+  const clean = {...setObj, updatedAt: Date.now()};
+  if (idx >= 0) state.sets[idx] = clean; else state.sets.push(clean);
+  saveSets(state.sets);
+  showToast("Saved on this device.");
+}
+
+function deleteSet(id){
+  state.sets = state.sets.filter(s => s.id !== id);
+  saveSets(state.sets);
+  showToast("Set deleted.");
+  render();
+}
+
+/* ---------------- Render root ---------------- */
+function render(){
+  const root = document.getElementById("root");
+  root.innerHTML = `
+    <header class="wd-header">
+      <div class="wd-header-inner">
+        <button class="logo-btn" data-action="go-home">
+          ${logoMark(30)}
+          <span class="wd-h" style="font-size:18px;font-weight:700;">studyday</span>
+        </button>
+        <div style="display:flex;align-items:center;gap:14px;">
+          <span style="color:var(--gray);font-size:13px;">Saved on this device only</span>
+          <button class="btn-ghost" data-action="open-admin" title="Admin" style="padding:4px;">${ICONS.lock}</button>
+        </div>
+      </div>
+    </header>
+    <main id="main-slot"></main>
+    ${renderAdminModal()}
+    <div id="toast-slot">${state.toast ? `<div class="toast">${esc(state.toast)}</div>` : ""}</div>
+  `;
+  const main = document.getElementById("main-slot");
+  main.innerHTML = renderView();
+  bindEvents();
+}
+
+function renderView(){
+  switch(state.view){
+    case "dashboard": return viewDashboard();
+    case "editor": return viewEditor();
+    case "mode-select": return viewModeSelect();
+    case "flashcards": return viewFlashcards();
+    case "learn": return viewLearn();
+    case "match": return viewMatch();
+    default: return "";
+  }
+}
+
+/* ---------------- Dashboard ---------------- */
+function viewDashboard(){
+  const sets = state.sets;
+  const cardsHtml = sets.length === 0
+    ? `<div style="text-align:center;padding:60px;color:var(--gray);">No study sets yet. Create the first one.</div>`
+    : `<div class="grid-sets">
+        ${sets.map(s => `
+          <div class="wd-card clickable" style="padding:20px;" data-action="open-set" data-id="${s.id}">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+              <div class="icon-box" style="color:var(--blue);">${ICONS.layers}</div>
+              <div style="display:flex;gap:4px;" data-stop="1">
+                <button class="btn-ghost" data-action="edit-set" data-id="${s.id}" title="Edit">${ICONS.pencil}</button>
+                <button class="btn-ghost" data-action="confirm-delete" data-id="${s.id}" title="Delete">${ICONS.trash}</button>
+              </div>
+            </div>
+            <h3 class="wd-h" style="font-size:16px;margin:14px 0 4px;">${esc(s.name || "Untitled set")}</h3>
+            <p style="font-size:13px;color:var(--gray);margin:0;">${s.cards.length} card${s.cards.length===1?"":"s"}</p>
+          </div>
+        `).join("")}
+      </div>`;
+
+  const confirmHtml = state.confirmDeleteId ? `
+    <div class="modal-overlay" data-action="close-modal-bg">
+      <div class="modal-box" data-stop="1">
+        <p style="font-size:14px;margin-top:0;">Delete this set? This can't be undone.</p>
+        <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px;">
+          <button class="btn-secondary" data-action="close-modal">Cancel</button>
+          <button class="btn-danger" data-action="delete-set" data-id="${state.confirmDeleteId}">Delete</button>
+        </div>
+      </div>
+    </div>` : "";
+
+  return `
+    <section class="hero">
+      <svg width="260" height="260" viewBox="0 0 40 40" style="position:absolute;right:-40px;top:-60px;opacity:.9;">
+        <defs><linearGradient id="heroarc" x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%" stop-color="#FDBA58"/><stop offset="100%" stop-color="#F4990B"/>
+        </linearGradient></defs>
+        <path d="M 2 25 A 18 18 0 0 1 38 25" fill="none" stroke="url(#heroarc)" stroke-width="3" stroke-linecap="round"/>
+      </svg>
+      <h1 class="wd-h" style="color:#fff;font-size:28px;margin:0 0 8px;max-width:480px;">Get ready for the Workday HCM exam</h1>
+      <p style="color:#B9C6D9;font-size:14px;max-width:440px;margin:0 0 20px;">Your sets are saved right in this browser on this device.</p>
+      <button class="btn-primary" data-action="new-set" style="display:inline-flex;align-items:center;gap:6px;">${ICONS.plus} New study set</button>
+    </section>
+    ${cardsHtml}
+    ${confirmHtml}
+  `;
+}
+
+/* ---------------- Editor ---------------- */
+function viewEditor(){
+  const d = state.editorDraft;
+  return `
+    <button class="btn-ghost" data-action="cancel-editor" style="margin-bottom:16px;">${ICONS.back} Back</button>
+    <h2 class="wd-h" style="font-size:22px;">${d._isNew ? "New study set" : "Edit set"}</h2>
+    <div style="display:grid;gap:12px;margin-bottom:24px;">
+      <input class="wd-input" id="set-name" placeholder="Set name (e.g. Security & Business Processes)" value="${esc(d.name)}">
+      <input class="wd-input" id="set-desc" placeholder="Description (optional)" value="${esc(d.description)}">
+    </div>
+    <div style="display:grid;gap:12px;" id="cards-list">
+      ${d.cards.map((c,i) => `
+        <div class="wd-card card-editor-row" data-card-id="${c.id}">
+          <span style="color:var(--gray);font-size:13px;text-align:center;">${i+1}</span>
+          <input class="wd-input" data-field="term" data-card-id="${c.id}" placeholder="Term" value="${esc(c.term)}">
+          <input class="wd-input" data-field="definition" data-card-id="${c.id}" placeholder="Definition" value="${esc(c.definition)}">
+          <button class="btn-ghost" data-action="remove-card" data-card-id="${c.id}">${ICONS.trash}</button>
+        </div>
+      `).join("")}
+    </div>
+    <button class="btn-secondary" data-action="add-card" style="margin-top:12px;display:inline-flex;align-items:center;gap:6px;">${ICONS.plus} Add card</button>
+    <div style="display:flex;gap:10px;margin-top:28px;">
+      <button class="btn-primary" data-action="save-set">Save set</button>
+      <button class="btn-secondary" data-action="cancel-editor">Cancel</button>
+    </div>
+  `;
+}
+
+/* ---------------- Mode select ---------------- */
+function viewModeSelect(){
+  const s = getActiveSet();
+  if (!s) { state.view = "dashboard"; return viewDashboard(); }
+  const modes = [
+    {id:"flashcards", label:"Flashcards", desc:"Flip through terms and definitions at your own pace.", icon:ICONS.layers},
+    {id:"learn", label:"Learn", desc:"Multiple-choice quiz that focuses on what you keep missing.", icon:ICONS.book},
+    {id:"match", label:"Match", desc:"Race the clock to pair every term with its definition.", icon:ICONS.grid},
+  ];
+  return `
+    <button class="btn-ghost" data-action="go-home" style="margin-bottom:16px;">${ICONS.back} All sets</button>
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:24px;">
+      <div>
+        <h2 class="wd-h" style="font-size:22px;margin:0 0 4px;">${esc(s.name)}</h2>
+        <p style="color:var(--gray);font-size:14px;margin:0;">${s.cards.length} cards${s.description ? " · " + esc(s.description) : ""}</p>
+      </div>
+      <button class="btn-secondary" data-action="edit-set" data-id="${s.id}" style="display:flex;align-items:center;gap:6px;">${ICONS.pencil} Edit</button>
+    </div>
+    ${s.cards.length === 0 ? `<p style="color:var(--gray);">This set has no cards yet — edit it to add some.</p>` : `
+      <div class="grid-modes">
+        ${modes.map(m => `
+          <div class="wd-card clickable" style="padding:22px;" data-action="pick-mode" data-mode="${m.id}">
+            <div style="width:40px;height:40px;border-radius:10px;background:linear-gradient(135deg,#F4990B22,#FDBA5822);display:flex;align-items:center;justify-content:center;margin-bottom:14px;color:var(--orange);">${m.icon}</div>
+            <h3 class="wd-h" style="font-size:16px;margin:0 0 6px;">${m.label}</h3>
+            <p style="font-size:13px;color:var(--gray);margin:0;line-height:1.5;">${m.desc}</p>
+            <div style="margin-top:14px;display:flex;align-items:center;gap:4px;color:var(--blue);font-size:13px;font-weight:600;">Start ${ICONS.chevron}</div>
+          </div>
+        `).join("")}
+      </div>
+    `}
+  `;
+}
+
+/* ---------------- Flashcards ---------------- */
+function viewFlashcards(){
+  const s = getActiveSet();
+  if (!s) { state.view="dashboard"; return viewDashboard(); }
+  if (!state.session || state.session.mode !== "flashcards") {
+    state.session = { mode:"flashcards", order: s.cards.map((_,i)=>i), i:0, flipped:false, known:{} };
+  }
+  const ses = state.session;
+  if (ses.i >= ses.order.length) {
+    const knownCount = Object.values(ses.known).filter(v=>v==="known").length;
+    return summaryScreen("Deck complete",
+      [{label:"Knew it", value:knownCount, color:"var(--green)"},{label:"Still learning", value: ses.order.length - knownCount, color:"var(--orange)"}],
+      [{label:"Study again", action:"restart-flashcards", missed:"0"},{label:"Review missed only", action:"restart-flashcards", missed:"1"}]);
+  }
+  const card = s.cards[ses.order[ses.i]];
+  const pct = (ses.i / ses.order.length) * 100;
+  return `
+    <div style="max-width:560px;margin:0 auto;">
+      ${topBar(pct, `${ses.i+1} / ${ses.order.length}`, true)}
+      <div class="flip-scene" data-action="flip-card">
+        <div class="flip-inner ${ses.flipped?'flipped':''}">
+          <div class="flip-face front">
+            <span style="font-size:11px;letter-spacing:1.5px;font-weight:700;color:var(--orange);margin-bottom:14px;">TERM</span>
+            <p class="wd-h" style="font-size:22px;margin:0;line-height:1.4;">${esc(card.term)}</p>
+          </div>
+          <div class="flip-face back">
+            <span style="font-size:11px;letter-spacing:1.5px;font-weight:700;color:var(--amber);margin-bottom:14px;">DEFINITION</span>
+            <p class="wd-h" style="font-size:22px;margin:0;line-height:1.4;color:#fff;">${esc(card.definition)}</p>
+          </div>
+        </div>
+      </div>
+      <p style="text-align:center;color:var(--gray);font-size:13px;margin-top:12px;">Tap the card to flip</p>
+      <div class="row-center" style="margin-top:20px;">
+        <button class="btn-secondary" style="border-color:var(--red);color:var(--red);display:flex;align-items:center;gap:6px;" data-action="flash-next" data-mark="unknown">${ICONS.x} Still learning</button>
+        <button class="btn-primary" style="display:flex;align-items:center;gap:6px;" data-action="flash-next" data-mark="known">${ICONS.check} Knew it</button>
+      </div>
+    </div>
+  `;
+}
+function topBar(pct, label, showShuffle){
+  return `
+    <div style="display:flex;align-items:center;gap:14px;">
+      <button class="btn-ghost" data-action="exit-mode">${ICONS.back} Exit</button>
+      <div class="progress-track"><div class="progress-fill" style="width:${pct}%;"></div></div>
+      <span style="font-size:13px;color:var(--gray);min-width:50px;text-align:right;">${label}</span>
+      ${showShuffle ? `<button class="btn-ghost" data-action="shuffle-flash" title="Shuffle">${ICONS.shuffle}</button>` : ""}
+    </div>
+  `;
+}
+
+/* ---------------- Learn ---------------- */
+function buildLearnQueue(cards){
+  return shuffle(cards).map(c => {
+    const others = shuffle(cards.filter(x=>x.id!==c.id)).slice(0,3);
+    return { card:c, options: shuffle([c, ...others]) };
+  });
+}
+function viewLearn(){
+  const s = getActiveSet();
+  if (!s) { state.view="dashboard"; return viewDashboard(); }
+  if (!state.session || state.session.mode !== "learn") {
+    state.session = { mode:"learn", queue: buildLearnQueue(s.cards), qi:0, selected:null, correct:0, total:0 };
+  }
+  const ses = state.session;
+  if (ses.qi >= ses.queue.length) {
+    return summaryScreen("Round complete",
+      [{label:"Correct", value:ses.correct, color:"var(--green)"},{label:"Missed", value: ses.total - ses.correct, color:"var(--red)"}],
+      [{label:"New round", action:"restart-learn"}]);
+  }
+  const cur = ses.queue[ses.qi];
+  const pct = (ses.qi / ses.queue.length) * 100;
+  return `
+    <div style="max-width:560px;margin:0 auto;">
+      ${topBar(pct, `${ses.qi+1} / ${ses.queue.length}`, false)}
+      <div class="wd-card" style="padding:28px;margin-top:20px;text-align:center;">
+        <span style="font-size:11px;letter-spacing:1.5px;font-weight:700;color:var(--orange);">WHICH TERM MATCHES?</span>
+        <p class="wd-h" style="font-size:19px;margin:14px 0 0;line-height:1.5;">${esc(cur.card.definition)}</p>
+      </div>
+      <div style="display:grid;gap:10px;margin-top:18px;">
+        ${cur.options.map(opt => {
+          let style = "";
+          let icon = "";
+          if (ses.selected) {
+            const isAnswer = opt.id === cur.card.id;
+            const isSel = ses.selected === opt.id;
+            if (isAnswer) { style = "background:#E9F7F0;border-color:var(--green);color:var(--green);"; icon = ICONS.check; }
+            else if (isSel) { style = "background:#FBEAE8;border-color:var(--red);color:var(--red);"; icon = ICONS.x; }
+          }
+          return `<button class="option-btn" style="${style}" data-action="learn-choose" data-opt-id="${opt.id}" ${ses.selected?'disabled':''}>${esc(opt.term)} ${icon}</button>`;
+        }).join("")}
+      </div>
+    </div>
+  `;
+}
+
+/* ---------------- Match ---------------- */
+function buildMatchTiles(cards){
+  const chosen = shuffle(cards).slice(0, Math.min(8, cards.length));
+  const tiles = [];
+  chosen.forEach(c => {
+    tiles.push({key:c.id+"-t", cardId:c.id, text:c.term, matched:false});
+    tiles.push({key:c.id+"-d", cardId:c.id, text:c.definition, matched:false});
+  });
+  return shuffle(tiles);
+}
+function viewMatch(){
+  const s = getActiveSet();
+  if (!s) { state.view="dashboard"; return viewDashboard(); }
+  if (!state.session || state.session.mode !== "match") {
+    state.session = { mode:"match", tiles: buildMatchTiles(s.cards), selected:[], wrong:[], seconds:0, done:false, timer:null };
+    state.session.timer = setInterval(() => {
+      if (state.session && !state.session.done) { state.session.seconds++; tickSeconds(); }
+    }, 1000);
+  }
+  const ses = state.session;
+  if (ses.done) {
+    return summaryScreen("Matched!", [{label:"Time", value: ses.seconds+"s", color:"var(--orange)"}], [], true);
+  }
+  return `
+    <div style="display:flex;align-items:center;gap:14px;margin-bottom:18px;">
+      <button class="btn-ghost" data-action="exit-mode">${ICONS.back} Exit</button>
+      <div style="flex:1;"></div>
+      <span id="match-timer" style="font-size:13px;color:var(--gray);">${ses.seconds}s</span>
+    </div>
+    <div class="match-grid">
+      ${ses.tiles.map(t => {
+        if (t.matched) return `<div class="match-tile hidden"></div>`;
+        const isSel = ses.selected.includes(t.key);
+        const isWrong = ses.wrong.includes(t.key);
+        let style = "";
+        if (isWrong) style = "border-color:var(--red);background:#FBEAE8;";
+        else if (isSel) style = "border-color:var(--orange);background:#FFF6E9;";
+        return `<button class="wd-card match-tile" style="${style}" data-action="match-pick" data-key="${t.key}">${esc(t.text)}</button>`;
+      }).join("")}
+    </div>
+  `;
+}
+function tickSeconds(){
+  const el = document.getElementById("match-timer");
+  if (el && state.session) el.textContent = state.session.seconds + "s";
+}
+
+/* ---------------- Summary ---------------- */
+function summaryScreen(title, stats, actions, hideReplay){
+  const total = stats.reduce((s,x)=> s + (typeof x.value==="number"?x.value:0), 0);
+  const first = stats[0];
+  const pct = typeof first.value === "number" && total > 0 ? (first.value/total)*100 : 100;
+  return `
+    <div style="max-width:420px;margin:60px auto;text-align:center;">
+      <div style="display:flex;justify-content:center;margin-bottom:18px;">${progressArc(pct,72,7)}</div>
+      <h2 class="wd-h" style="font-size:22px;margin:0 0 18px;display:flex;align-items:center;justify-content:center;gap:8px;color:var(--orange);">
+        <span style="color:var(--blueDark);display:flex;align-items:center;gap:8px;">${ICONS.trophy} ${title}</span>
+      </h2>
+      <div style="display:flex;justify-content:center;gap:28px;margin-bottom:26px;">
+        ${stats.map(s => `<div><div class="wd-h" style="font-size:26px;color:${s.color};">${s.value}</div><div style="font-size:12px;color:var(--gray);">${s.label}</div></div>`).join("")}
+      </div>
+      <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">
+        ${!hideReplay ? actions.map(a => `<button class="btn-primary" style="display:flex;align-items:center;gap:6px;" data-action="${a.action}" ${a.missed!==undefined?`data-missed="${a.missed}"`:""}>${ICONS.redo} ${a.label}</button>`).join("") : ""}
+        <button class="btn-secondary" data-action="exit-mode">Back to set</button>
+      </div>
+    </div>
+  `;
+}
+
+/* ---------------- Event binding ---------------- */
+function bindEvents(){
+  const root = document.getElementById("root");
+
+  root.querySelectorAll("[data-stop]").forEach(el => {
+    el.addEventListener("click", e => e.stopPropagation());
+  });
+
+  root.addEventListener("click", (e) => {
+    const el = e.target.closest("[data-action]");
+    if (!el) return;
+    const action = el.getAttribute("data-action");
+    handleAction(action, el, e);
+  }, { once:false });
+
+  // editor live input binding
+  const nameInput = document.getElementById("set-name");
+  const descInput = document.getElementById("set-desc");
+  if (nameInput) nameInput.addEventListener("input", e => { state.editorDraft.name = e.target.value; });
+  if (descInput) descInput.addEventListener("input", e => { state.editorDraft.description = e.target.value; });
+  const passInput = document.getElementById("admin-passcode-input");
+  if (passInput) passInput.addEventListener("keydown", e => {
+    if (e.key === "Enter") { e.preventDefault(); handleAction("submit-admin-passcode"); }
+  });
+  root.querySelectorAll("[data-field]").forEach(inp => {
+    inp.addEventListener("input", e => {
+      const cardId = inp.getAttribute("data-card-id");
+      const field = inp.getAttribute("data-field");
+      const card = state.editorDraft.cards.find(c => c.id === cardId);
+      if (card) card[field] = e.target.value;
+    });
+  });
+}
+
+async function handleAction(action, el){
+  switch(action){
+    case "open-admin":
+      state.adminModalOpen = true; state.adminError = false; render();
+      setTimeout(() => { const inp=document.getElementById("admin-passcode-input"); if(inp) inp.focus(); }, 0);
+      return;
+    case "close-admin": case "close-admin-bg":
+      state.adminModalOpen = false; state.adminUnlocked = false; state.adminError = false; render(); return;
+    case "submit-admin-passcode": {
+      const inp = document.getElementById("admin-passcode-input");
+      const val = inp ? inp.value : "";
+      const hash = await sha256Hex(val);
+      if (hash === ADMIN_PASSCODE_HASH) {
+        state.adminUnlocked = true; state.adminError = false;
+      } else {
+        state.adminError = true;
+      }
+      render();
+      return;
+    }
+    case "go-home":
+      state.view = "dashboard"; state.session = null; render(); break;
+    case "new-set":
+      state.editorDraft = { id: uid(), name:"", description:"", cards:[{id:uid(),term:"",definition:""}], _isNew:true };
+      state.view = "editor"; render(); break;
+    case "edit-set": {
+      const id = el.getAttribute("data-id");
+      const s = state.sets.find(x=>x.id===id);
+      if (s) { state.editorDraft = JSON.parse(JSON.stringify(s)); state.editorDraft._isNew=false; state.view="editor"; render(); }
+      break;
+    }
+    case "cancel-editor":
+      state.view = state.activeSetId ? "mode-select" : "dashboard"; render(); break;
+    case "add-card":
+      state.editorDraft.cards.push({id:uid(),term:"",definition:""}); render(); break;
+    case "remove-card": {
+      const cardId = el.getAttribute("data-card-id");
+      if (state.editorDraft.cards.length > 1) state.editorDraft.cards = state.editorDraft.cards.filter(c=>c.id!==cardId);
+      render(); break;
+    }
+    case "save-set": {
+      const d = state.editorDraft;
+      const name = (d.name||"").trim();
+      const cleaned = d.cards.filter(c => c.term.trim() && c.definition.trim());
+      if (!name || cleaned.length===0) { showToast("Add a name and at least one complete card."); return; }
+      persistActiveSetEdit({ id:d.id, name, description:(d.description||"").trim(), cards:cleaned });
+      state.view = "dashboard"; render(); break;
+    }
+    case "open-set": {
+      state.activeSetId = el.getAttribute("data-id");
+      state.session = null;
+      state.view = "mode-select"; render(); break;
+    }
+    case "confirm-delete":
+      state.confirmDeleteId = el.getAttribute("data-id"); render(); break;
+    case "close-modal": case "close-modal-bg":
+      state.confirmDeleteId = null; render(); break;
+    case "delete-set":
+      deleteSet(el.getAttribute("data-id")); state.confirmDeleteId = null; render(); break;
+    case "pick-mode":
+      state.session = null;
+      state.view = el.getAttribute("data-mode"); render(); break;
+    case "exit-mode":
+      if (state.session && state.session.timer) clearInterval(state.session.timer);
+      state.session = null; state.view = "mode-select"; render(); break;
+
+    // flashcards
+    case "flip-card":
+      state.session.flipped = !state.session.flipped; render(); break;
+    case "shuffle-flash":
+      state.session.order = shuffle(state.session.order); render(); break;
+    case "flash-next": {
+      const mark = el.getAttribute("data-mark");
+      const s = getActiveSet();
+      const card = s.cards[state.session.order[state.session.i]];
+      state.session.known[card.id] = mark;
+      state.session.flipped = false;
+      setTimeout(() => { state.session.i++; render(); }, 120);
+      return;
+    }
+    case "restart-flashcards": {
+      const missed = el.getAttribute("data-missed") === "1";
+      const s = getActiveSet();
+      let base = s.cards.map((_,i)=>i);
+      if (missed) {
+        const missedIdx = base.filter(i => state.session.known[s.cards[i].id] === "unknown");
+        base = missedIdx.length ? missedIdx : base;
+      }
+      state.session = { mode:"flashcards", order: shuffle(base), i:0, flipped:false, known:{} };
+      render(); break;
+    }
+
+    // learn
+    case "learn-choose": {
+      const optId = el.getAttribute("data-opt-id");
+      const ses = state.session;
+      const cur = ses.queue[ses.qi];
+      ses.selected = optId;
+      ses.total++;
+      if (optId === cur.card.id) ses.correct++;
+      render();
+      setTimeout(() => { ses.selected = null; ses.qi++; render(); }, 900);
+      return;
+    }
+    case "restart-learn": {
+      const s = getActiveSet();
+      state.session = { mode:"learn", queue: buildLearnQueue(s.cards), qi:0, selected:null, correct:0, total:0 };
+      render(); break;
+    }
+
+    // match
+    case "match-pick": {
+      const key = el.getAttribute("data-key");
+      const ses = state.session;
+      if (ses.done || ses.selected.includes(key)) return;
+      const tile = ses.tiles.find(t=>t.key===key);
+      if (!tile || tile.matched) return;
+      ses.selected = [...ses.selected, key];
+      render();
+      if (ses.selected.length === 2) {
+        const [a,b] = ses.selected.map(k => ses.tiles.find(t=>t.key===k));
+        if (a.cardId === b.cardId) {
+          setTimeout(() => {
+            ses.tiles.forEach(t => { if (t.cardId===a.cardId) t.matched=true; });
+            ses.selected = [];
+            if (ses.tiles.every(t=>t.matched)) { ses.done = true; clearInterval(ses.timer); }
+            render();
+          }, 250);
+        } else {
+          ses.wrong = ses.selected;
+          setTimeout(() => { ses.wrong = []; ses.selected = []; render(); }, 550);
+        }
+      }
+      return;
+    }
+  }
+}
+
+/* ---------------- Init ---------------- */
+render();
+</script>
+</body>
+</html>
