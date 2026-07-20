@@ -169,7 +169,13 @@ function saveFeedback(list){
 // When shared/cloud storage is added later, this function's OUTPUT (a plain
 // {name, description, cards} object) is exactly what gets written there too —
 // nothing else about this flow needs to change.
-const CLAUDE_IMPORT_PROMPT = `Turn the attached document into flashcards for studying. If the document already contains a list of questions and answers, use those directly — question becomes "term", answer becomes "definition" — rather than inventing new ones. Otherwise, generate flashcards covering the key terms, concepts, and facts a student would actually be tested on, with each definition kept to 1-3 concise sentences.
+const CLAUDE_IMPORT_PROMPT = `Turn the attached document into flashcards for studying.
+
+If the document already contains a list of questions and answers, use those directly rather than inventing new ones:
+- "term" = the actual question wording itself, with any label or number stripped off (e.g. from "Question 3: What is a Supervisory Organization?" the term is "What is a Supervisory Organization?" — never just "Question 3").
+- "definition" = the full answer text that corresponds to that question, with any "Answer:" label stripped off.
+
+If the document does NOT already contain questions and answers, generate flashcards covering the key terms, concepts, and facts a student would actually be tested on, with each definition kept to 1-3 concise sentences.
 
 Return ONLY a JSON array (no markdown, no code fences, no extra commentary) where each item looks like:
 {"term": "...", "definition": "..."}`;
