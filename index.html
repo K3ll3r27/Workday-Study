@@ -130,6 +130,10 @@ const STARTER_SET = {
 
 const STORAGE_KEY = "wd_study_sets_v1";
 const FOLDERS = ["HCM Core", "Supply Chain", "Financial", "Learning and Talent"];
+const TICKET_CATEGORIES = ["Bug", "Feature request", "Content issue", "Other"];
+const TICKET_PRIORITIES = ["Low", "Medium", "High"];
+const PRIORITY_COLOR = { Low: "var(--gray)", Medium: "var(--blue)", High: "var(--red)" };
+const STATUS_COLOR = { "Open": "var(--orange)", "In Progress": "var(--blue)", "Resolved": "var(--green)" };
 
 function uid(){ return Math.random().toString(36).slice(2,10) + Date.now().toString(36).slice(-4); }
 function shuffle(arr){ const a=[...arr]; for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; }
@@ -157,7 +161,16 @@ function saveSets(sets){
 /* ---------------- Feedback / future-fixes notes ---------------- */
 const FEEDBACK_KEY = "wd_feedback_v1";
 function loadFeedback(){
-  try { const raw = localStorage.getItem(FEEDBACK_KEY); return raw ? JSON.parse(raw) : []; } catch(e) { return []; }
+  try {
+    const raw = localStorage.getItem(FEEDBACK_KEY);
+    const list = raw ? JSON.parse(raw) : [];
+    return list.map(n => ({
+      id: n.id, text: n.text, at: n.at,
+      category: TICKET_CATEGORIES.includes(n.category) ? n.category : "Other",
+      priority: TICKET_PRIORITIES.includes(n.priority) ? n.priority : "Medium",
+      status: ["Open","In Progress","Resolved"].includes(n.status) ? n.status : "Open",
+    }));
+  } catch(e) { return []; }
 }
 function saveFeedback(list){
   try { localStorage.setItem(FEEDBACK_KEY, JSON.stringify(list)); } catch(e) {}
@@ -267,12 +280,61 @@ function renderAdminModal(){
         </div>
       </div>`;
   }
+  const statusFilters = ["all", "Open", "In Progress", "Resolved"];
+  const tickets = state.feedback
+    .slice()
+    .sort((a,b) => b.at - a.at)
+    .filter(t => state.adminTicketFilter === "all" || t.status === state.adminTicketFilter);
+  const openCount = state.feedback.filter(t => t.status === "Open").length;
+
   return `
     <div class="modal-overlay" data-action="close-admin-bg">
-      <div class="modal-box" data-stop="1" style="max-width:420px;">
-        <h3 class="wd-h" style="font-size:16px;margin:0 0 4px;display:flex;align-items:center;gap:8px;">${ICONS.lock} Admin</h3>
-        <p style="font-size:13px;color:var(--gray);margin:0 0 16px;">To make changes to this site, open a Claude conversation and describe what you want updated — Claude edits the code and pushes it to the repo, then this page redeploys automatically.</p>
-        <a href="https://claude.ai/new" target="_blank" rel="noopener" class="btn-primary" style="display:inline-flex;align-items:center;gap:6px;text-decoration:none;">Open Claude to make a change</a>
+      <div class="modal-box" data-stop="1" style="max-width:600px;">
+        <h3 class="wd-h" style="font-size:16px;margin:0 0 4px;display:flex;align-items:center;gap:8px;">${ICONS.lock} Admin Hub</h3>
+        <p style="font-size:13px;color:var(--gray);margin:0 0 16px;">Manage tickets and push code changes from here.</p>
+
+        <div style="border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:14px;">
+          <p style="font-size:12.5px;font-weight:700;color:var(--blueDark);margin:0 0 8px;">CODE UPDATES</p>
+          <p style="font-size:12.5px;color:var(--gray);margin:0 0 10px;line-height:1.5;">Open a Claude conversation and describe what you want updated — Claude edits the code and pushes it, then this page redeploys automatically.</p>
+          <a href="https://claude.ai/new" target="_blank" rel="noopener" class="btn-primary" style="display:inline-flex;align-items:center;gap:6px;text-decoration:none;">Open Claude to make a change</a>
+        </div>
+
+        <div style="border:1px solid var(--border);border-radius:10px;padding:14px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px;">
+            <p style="font-size:12.5px;font-weight:700;color:var(--blueDark);margin:0;">TICKETS ${openCount > 0 ? `<span style="color:var(--orange);">(${openCount} open)</span>` : ""}</p>
+            <div style="display:flex;gap:4px;flex-wrap:wrap;">
+              ${statusFilters.map(f => `
+                <button class="btn-ghost" data-action="admin-filter-tickets" data-filter="${f}" style="font-size:11.5px;padding:4px 9px;border-radius:999px;border:1px solid ${state.adminTicketFilter===f?"var(--blue)":"var(--border)"};color:${state.adminTicketFilter===f?"var(--blue)":"var(--gray)"};">${f === "all" ? "All" : f}</button>
+              `).join("")}
+            </div>
+          </div>
+          ${tickets.length === 0 ? `<p style="font-size:12.5px;color:var(--gray);margin:0;">No tickets here.</p>` : `
+            <div style="display:grid;gap:8px;max-height:320px;overflow-y:auto;">
+              ${tickets.map(t => `
+                <div style="border:1px solid var(--border);border-radius:8px;padding:10px;">
+                  <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
+                    <div style="flex:1;">
+                      <div style="display:flex;gap:6px;margin-bottom:4px;flex-wrap:wrap;">
+                        <span style="font-size:10.5px;font-weight:700;color:${PRIORITY_COLOR[t.priority]};">${esc(t.priority)} priority</span>
+                        <span style="font-size:10.5px;color:var(--gray);">· ${esc(t.category)}</span>
+                        <span style="font-size:10.5px;color:var(--gray);">· ${new Date(t.at).toLocaleDateString()}</span>
+                      </div>
+                      <p style="font-size:13px;margin:0;color:var(--blueDark);line-height:1.4;">${esc(t.text)}</p>
+                    </div>
+                    <button class="btn-ghost" data-action="delete-feedback" data-id="${t.id}" title="Delete ticket" style="padding:2px;">${ICONS.trash}</button>
+                  </div>
+                  <div style="display:flex;gap:5px;margin-top:8px;flex-wrap:wrap;">
+                    ${["Open","In Progress","Resolved"].map(s => `
+                      <button class="btn-ghost" data-action="admin-set-ticket-status" data-id="${t.id}" data-status="${s}"
+                        style="font-size:11px;padding:4px 9px;border-radius:999px;border:1px solid ${t.status===s?STATUS_COLOR[s]:"var(--border)"};color:${t.status===s?STATUS_COLOR[s]:"var(--gray)"};background:${t.status===s?STATUS_COLOR[s]+"18":"transparent"};">${s}</button>
+                    `).join("")}
+                  </div>
+                </div>
+              `).join("")}
+            </div>
+          `}
+        </div>
+
         <div style="display:flex;justify-content:flex-end;margin-top:16px;">
           <button class="btn-secondary" data-action="close-admin">Close</button>
         </div>
@@ -283,22 +345,34 @@ function renderAdminModal(){
 function renderFeedbackModal(){
   if (!state.feedbackModalOpen) return "";
   const notes = state.feedback;
-  const bodyForEmail = notes.map(n => `- ${n.text} (${new Date(n.at).toLocaleDateString()})`).join("%0D%0A");
+  const bodyForEmail = notes.map(n => `- [${n.category}/${n.priority}] ${n.text} (${new Date(n.at).toLocaleDateString()})`).join("%0D%0A");
   const mailto = `mailto:?subject=${encodeURIComponent("StudyDay — notes for future updates")}&body=${bodyForEmail}`;
   return `
     <div class="modal-overlay" data-action="close-feedback-bg">
       <div class="modal-box" data-stop="1" style="max-width:440px;">
         <h3 class="wd-h" style="font-size:16px;margin:0 0 4px;display:flex;align-items:center;gap:8px;">${ICONS.comment} Notes for future updates</h3>
         <p style="font-size:13px;color:var(--gray);margin:0 0 14px;">Jot down anything that's broken or a feature to add later. These notes are saved on this device only.</p>
-        <textarea id="feedback-input" class="wd-input" rows="3" placeholder="e.g. Match mode is too easy with only 8 cards..." style="resize:vertical;font-family:inherit;"></textarea>
+        <textarea id="feedback-input" class="wd-input" rows="3" placeholder="e.g. Match mode is too easy with only 8 cards..." style="resize:vertical;font-family:inherit;margin-bottom:8px;"></textarea>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+          <select class="wd-input" id="feedback-category">
+            ${TICKET_CATEGORIES.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join("")}
+          </select>
+          <select class="wd-input" id="feedback-priority">
+            ${TICKET_PRIORITIES.map(p => `<option value="${esc(p)}" ${p==="Medium"?"selected":""}>${esc(p)} priority</option>`).join("")}
+          </select>
+        </div>
         <div style="display:flex;justify-content:flex-end;margin-top:10px;">
-          <button class="btn-primary" data-action="submit-feedback">Add note</button>
+          <button class="btn-primary" data-action="submit-feedback">Add ticket</button>
         </div>
         ${notes.length > 0 ? `
           <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--border);max-height:220px;overflow-y:auto;display:grid;gap:10px;">
             ${notes.slice().reverse().map(n => `
               <div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start;">
                 <div>
+                  <div style="display:flex;gap:6px;margin-bottom:3px;flex-wrap:wrap;">
+                    <span style="font-size:10.5px;font-weight:700;color:${STATUS_COLOR[n.status]};background:${STATUS_COLOR[n.status]}18;border-radius:999px;padding:2px 8px;">${esc(n.status)}</span>
+                    <span style="font-size:10.5px;color:${PRIORITY_COLOR[n.priority]};">${esc(n.priority)} · ${esc(n.category)}</span>
+                  </div>
                   <p style="font-size:13px;margin:0;color:var(--blueDark);">${esc(n.text)}</p>
                   <span style="font-size:11px;color:var(--gray);">${new Date(n.at).toLocaleDateString()}</span>
                 </div>
@@ -501,6 +575,7 @@ let state = {
   adminError: false,
   feedbackModalOpen: false,
   feedback: loadFeedback(),
+  adminTicketFilter: "all",
   importModalOpen: false,
   importError: null,
   extractedText: "",
@@ -1023,9 +1098,16 @@ async function handleAction(action, el){
       state.feedbackModalOpen = false; render(); return;
     case "submit-feedback": {
       const t = document.getElementById("feedback-input");
+      const catSel = document.getElementById("feedback-category");
+      const prioSel = document.getElementById("feedback-priority");
       const text = t ? t.value.trim() : "";
       if (!text) return;
-      state.feedback.push({ id: uid(), text, at: Date.now() });
+      state.feedback.push({
+        id: uid(), text, at: Date.now(),
+        category: catSel ? catSel.value : "Other",
+        priority: prioSel ? prioSel.value : "Medium",
+        status: "Open",
+      });
       saveFeedback(state.feedback);
       render();
       return;
@@ -1037,6 +1119,18 @@ async function handleAction(action, el){
       render();
       return;
     }
+    case "admin-set-ticket-status": {
+      const id = el.getAttribute("data-id");
+      const status = el.getAttribute("data-status");
+      const t = state.feedback.find(x => x.id === id);
+      if (t) { t.status = status; saveFeedback(state.feedback); }
+      render();
+      return;
+    }
+    case "admin-filter-tickets":
+      state.adminTicketFilter = el.getAttribute("data-filter");
+      render();
+      return;
     case "open-sidebar":
       state.sidebarOpen = true; render(); return;
     case "open-move-folder":
