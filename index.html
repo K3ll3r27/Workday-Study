@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow">
 <title>StudyDay — Workday HCM Study</title>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Sora:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap');
@@ -57,7 +58,10 @@
   }
   @media (prefers-reduced-motion: reduce){ .wd-card,.btn-primary,.flip-inner{transition:none!important;} }
 
-  #splash{position:fixed;inset:0;background:var(--blueDark);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;z-index:200;transition:opacity .4s ease;}
+  #login-gate{position:fixed;inset:0;background:var(--blueDark);display:flex;align-items:center;justify-content:center;z-index:300;padding:20px;}
+  .login-card{background:#fff;border-radius:16px;padding:32px 28px;max-width:360px;width:100%;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.35);}
+
+  #splash{position:fixed;inset:0;background:var(--blueDark);display:none;flex-direction:column;align-items:center;justify-content:center;gap:16px;z-index:200;transition:opacity .4s ease;}
   #splash.fade-out{opacity:0;pointer-events:none;}
   #splash-logo-slot{animation:splashPulse 1.5s ease-in-out infinite;}
   @keyframes splashPulse{0%,100%{transform:scale(1);opacity:1;}50%{transform:scale(1.07);opacity:.85;}}
@@ -70,6 +74,17 @@
 </style>
 </head>
 <body>
+<div id="login-gate">
+  <div class="login-card">
+    <div id="login-logo-slot" style="display:flex;justify-content:center;margin-bottom:14px;"></div>
+    <h2 class="wd-h" style="font-size:19px;margin:0 0 4px;">StudyDay</h2>
+    <p style="font-size:13px;color:var(--gray);margin:0 0 20px;">Sign in with your team credentials to continue.</p>
+    <input class="wd-input" id="login-username" placeholder="Username" autocomplete="username" style="margin-bottom:10px;">
+    <input class="wd-input" id="login-password" type="password" placeholder="Password" autocomplete="current-password" style="margin-bottom:6px;">
+    <p id="login-error" style="color:var(--red);font-size:12.5px;min-height:16px;margin:6px 0 12px;text-align:left;"></p>
+    <button class="btn-primary" id="login-submit" style="width:100%;">Log in</button>
+  </div>
+</div>
 <div id="splash">
   <div id="splash-logo-slot"></div>
   <div class="splash-text">StudyDay</div>
@@ -946,16 +961,61 @@ document.getElementById("root").addEventListener("click", (e) => {
   if (!actionEl) return;
   handleAction(actionEl.getAttribute("data-action"), actionEl);
 });
-render();
 
-const splashLogoSlot = document.getElementById("splash-logo-slot");
-if (splashLogoSlot) splashLogoSlot.innerHTML = logoMark(56);
-setTimeout(() => {
+/* ---------------- Site-wide login gate ---------------- */
+const LOGIN_HASH = "b61fe9c36c645df012e5a71ead84dda8cc6ecbf0c9a9b5f8c5f8b235f8fe50ad";
+const LOGIN_KEY = "wd_site_unlocked_v1";
+
+function startApp(){
+  render();
+  const splashLogoSlot = document.getElementById("splash-logo-slot");
+  if (splashLogoSlot) splashLogoSlot.innerHTML = logoMark(56);
   const splash = document.getElementById("splash");
-  if (!splash) return;
-  splash.classList.add("fade-out");
-  setTimeout(() => splash.remove(), 450);
-}, 600);
+  if (splash) splash.style.display = "flex";
+  setTimeout(() => {
+    if (!splash) return;
+    splash.classList.add("fade-out");
+    setTimeout(() => splash.remove(), 450);
+  }, 600);
+}
+
+function initLoginGate(){
+  const gate = document.getElementById("login-gate");
+  const loginLogoSlot = document.getElementById("login-logo-slot");
+  if (loginLogoSlot) loginLogoSlot.innerHTML = logoMark(40);
+
+  let unlocked = false;
+  try { unlocked = localStorage.getItem(LOGIN_KEY) === "1"; } catch(e) {}
+  if (unlocked) {
+    gate.style.display = "none";
+    startApp();
+    return;
+  }
+
+  const userInput = document.getElementById("login-username");
+  const passInput = document.getElementById("login-password");
+  const errorEl = document.getElementById("login-error");
+  const submitBtn = document.getElementById("login-submit");
+
+  async function attempt(){
+    const u = (userInput.value || "").trim().toLowerCase();
+    const p = passInput.value || "";
+    if (!u || !p) { errorEl.textContent = "Enter both a username and password."; return; }
+    const hash = await sha256Hex(u + "|" + p);
+    if (hash === LOGIN_HASH) {
+      try { localStorage.setItem(LOGIN_KEY, "1"); } catch(e) {}
+      gate.style.display = "none";
+      startApp();
+    } else {
+      errorEl.textContent = "Incorrect username or password.";
+    }
+  }
+  submitBtn.addEventListener("click", attempt);
+  [userInput, passInput].forEach(inp => inp.addEventListener("keydown", e => {
+    if (e.key === "Enter") { e.preventDefault(); attempt(); }
+  }));
+}
+initLoginGate();
 </script>
 </body>
 </html>
