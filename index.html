@@ -2065,6 +2065,9 @@ function startApp(){
   setupActivityTracking();
   setInterval(() => {
     if (state.view !== "dashboard") return;
+    if (document.querySelector(".modal-overlay")) return; // any modal open (e.g. admin passcode) — don't wipe it out
+    const active = document.activeElement;
+    if (active && ["INPUT","TEXTAREA","SELECT"].includes(active.tagName)) return; // don't interrupt typing anywhere
     if (loadCertificates().length > 1) {
       state.certCarouselIndex = state.certCarouselIndex + 1;
       render();
