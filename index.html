@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>studyday — Workday HCM Study</title>
+<title>StudyDay — Workday HCM Study</title>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Sora:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap');
   :root{
@@ -72,7 +72,7 @@
 <body>
 <div id="splash">
   <div id="splash-logo-slot"></div>
-  <div class="splash-text">studyday</div>
+  <div class="splash-text">StudyDay</div>
 </div>
 <div id="root"></div>
 
@@ -232,7 +232,7 @@ function renderFeedbackModal(){
   if (!state.feedbackModalOpen) return "";
   const notes = state.feedback;
   const bodyForEmail = notes.map(n => `- ${n.text} (${new Date(n.at).toLocaleDateString()})`).join("%0D%0A");
-  const mailto = `mailto:?subject=${encodeURIComponent("studyday — notes for future updates")}&body=${bodyForEmail}`;
+  const mailto = `mailto:?subject=${encodeURIComponent("StudyDay — notes for future updates")}&body=${bodyForEmail}`;
   return `
     <div class="modal-overlay" data-action="close-feedback-bg">
       <div class="modal-box" data-stop="1" style="max-width:440px;">
@@ -381,7 +381,7 @@ function render(){
       <div class="wd-header-inner">
         <button class="logo-btn" data-action="go-home">
           ${logoMark(30)}
-          <span class="wd-h" style="font-size:18px;font-weight:700;">studyday</span>
+          <span class="wd-h" style="font-size:18px;font-weight:700;">StudyDay</span>
         </button>
         <div style="display:flex;align-items:center;gap:14px;">
           <span style="color:var(--gray);font-size:13px;">Saved on this device only</span>
