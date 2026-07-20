@@ -96,6 +96,9 @@
     .dashboard-layout{flex-direction:column;}
     .leaderboard-widget{width:100%;position:static;}
   }
+  .cert-slide{animation:certSlideIn .5s cubic-bezier(.22,.61,.36,1);}
+  @keyframes certSlideIn{from{opacity:0;transform:translateX(32px);}to{opacity:1;transform:translateX(0);}}
+  @media (prefers-reduced-motion: reduce){ .cert-slide{animation:none;} }
 </style>
 </head>
 <body>
@@ -1131,10 +1134,12 @@ function viewDashboard(){
         ${!activeCert ? `
           <p style="font-size:12.5px;color:var(--gray);margin:0;">No one's posted a certificate yet — be the first!</p>
         ` : `
+          <div class="cert-slide">
           <img src="${activeCert.photo}" style="width:100%;height:170px;object-fit:cover;border-radius:10px;display:block;margin-bottom:10px;">
           <p style="font-size:14px;font-weight:600;color:var(--blueDark);margin:0 0 2px;">${esc(activeCert.employeeName)}</p>
           <p style="font-size:12px;color:var(--orange);font-weight:600;margin:0 0 2px;">${esc(activeCert.certification)}</p>
           <p style="font-size:11.5px;color:var(--gray);margin:0 0 ${perPersonCerts.length>1?"10px":"0"};">${new Date(activeCert.dateEarned).toLocaleDateString()}</p>
+          </div>
           ${perPersonCerts.length > 1 ? `
             <div style="display:flex;gap:5px;justify-content:center;">
               ${perPersonCerts.map((c,i) => `<button data-action="cert-carousel-select" data-index="${i}" style="width:${i===activeCertIdx?"18px":"6px"};height:6px;border-radius:999px;border:none;background:${i===activeCertIdx?"var(--orange)":"var(--border)"};cursor:pointer;transition:width .2s ease;padding:0;"></button>`).join("")}
