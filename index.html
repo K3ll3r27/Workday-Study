@@ -173,12 +173,14 @@ const CLAUDE_IMPORT_PROMPT = `Turn the attached document into flashcards for stu
 
 If the document already contains a list of questions and answers, use those directly rather than inventing new ones:
 - "term" = the actual question wording itself, with any label or number stripped off (e.g. from "Question 3: What is a Supervisory Organization?" the term is "What is a Supervisory Organization?" — never just "Question 3").
-- "definition" = the full answer text that corresponds to that question, with any "Answer:" label stripped off.
+- "definition" = ONLY the short correct answer itself, with no "Correct Answer —" prefix, no answer-choice letter (A/B/C/D), and no extra reasoning folded in. Just the answer, plain.
+- "explanation" = if the source explains WHY that answer is correct, put that reasoning here instead of cramming it into "definition". Omit this field entirely if there's no separate reasoning given.
 
-If the document does NOT already contain questions and answers, generate flashcards covering the key terms, concepts, and facts a student would actually be tested on, with each definition kept to 1-3 concise sentences.
+If the document does NOT already contain questions and answers, generate flashcards covering the key terms, concepts, and facts a student would actually be tested on, with each definition kept to 1-3 concise sentences (explanation can be omitted).
 
 Return ONLY a JSON array (no markdown, no code fences, no extra commentary) where each item looks like:
-{"term": "...", "definition": "..."}`;
+{"term": "...", "definition": "...", "explanation": "..."}
+("explanation" is optional — omit the key entirely for any card that doesn't have extra reasoning to add.)`;
 
 // Loads the mammoth.js library on demand (only when someone actually
 // uploads a .docx) so the app has zero extra network cost otherwise.
@@ -212,6 +214,7 @@ function parseImportedCards(raw){
     .map(c => ({
       term: (c && (c.term || c.Term) ? String(c.term || c.Term) : "").trim(),
       definition: (c && (c.definition || c.Definition) ? String(c.definition || c.Definition) : "").trim(),
+      explanation: (c && (c.explanation || c.Explanation) ? String(c.explanation || c.Explanation) : "").trim(),
     }))
     .filter(c => c.term && c.definition);
   if (cleaned.length === 0) return { error: "No valid term/definition pairs were found in that JSON." };
@@ -428,6 +431,7 @@ function renderImportModal(){
                   <div>
                     <p style="font-size:13px;font-weight:600;margin:0 0 3px;color:var(--blueDark);">${esc(c.term)}</p>
                     <p style="font-size:12.5px;margin:0;color:var(--gray);line-height:1.4;">${esc(c.definition)}</p>
+                    ${c.explanation ? `<p style="font-size:11.5px;margin:4px 0 0;color:var(--blue);line-height:1.4;">${ICONS.check} ${esc(c.explanation)}</p>` : ""}
                   </div>
                   <button class="btn-ghost" data-action="remove-preview-card" data-id="${c.id}" title="Remove this card">${ICONS.trash}</button>
                 </div>
@@ -683,11 +687,17 @@ function viewEditor(){
     </div>
     <div style="display:grid;gap:12px;" id="cards-list">
       ${d.cards.map((c,i) => `
-        <div class="wd-card card-editor-row" data-card-id="${c.id}">
-          <span style="color:var(--gray);font-size:13px;text-align:center;">${i+1}</span>
-          <input class="wd-input" data-field="term" data-card-id="${c.id}" placeholder="Term" value="${esc(c.term)}">
-          <input class="wd-input" data-field="definition" data-card-id="${c.id}" placeholder="Definition" value="${esc(c.definition)}">
-          <button class="btn-ghost" data-action="remove-card" data-card-id="${c.id}">${ICONS.trash}</button>
+        <div class="wd-card" data-card-id="${c.id}" style="padding:14px;">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+            <span style="color:var(--gray);font-size:12px;">${i+1}</span>
+            <div style="flex:1;"></div>
+            <button class="btn-ghost" data-action="remove-card" data-card-id="${c.id}" style="padding:2px;">${ICONS.trash}</button>
+          </div>
+          <div style="display:grid;gap:8px;">
+            <input class="wd-input" data-field="term" data-card-id="${c.id}" placeholder="Term / question" value="${esc(c.term)}">
+            <input class="wd-input" data-field="definition" data-card-id="${c.id}" placeholder="Answer" value="${esc(c.definition)}">
+            <input class="wd-input" data-field="explanation" data-card-id="${c.id}" placeholder="Why (optional) — extra context shown when studying in Learn mode" value="${esc(c.explanation || "")}">
+          </div>
         </div>
       `).join("")}
     </div>
@@ -832,10 +842,12 @@ function viewLearn(){
       ? `<div style="background:#E9F7F0;border:1.5px solid var(--green);border-radius:10px;padding:14px 16px;margin-top:14px;text-align:left;">
           <p style="font-weight:700;color:var(--green);font-size:14px;margin:0 0 4px;display:flex;align-items:center;gap:6px;">${ICONS.check} Good job!</p>
           <p style="font-size:13.5px;color:var(--blueDark);margin:0;line-height:1.5;"><strong>${esc(cur.card.term)}</strong> — ${esc(cur.card.definition)}</p>
+          ${cur.card.explanation ? `<p style="font-size:12.5px;color:var(--gray);margin:6px 0 0;line-height:1.5;">${esc(cur.card.explanation)}</p>` : ""}
         </div>`
       : `<div style="background:#FBEAE8;border:1.5px solid var(--red);border-radius:10px;padding:14px 16px;margin-top:14px;text-align:left;">
           <p style="font-weight:700;color:var(--red);font-size:14px;margin:0 0 4px;display:flex;align-items:center;gap:6px;">${ICONS.x} Not quite</p>
           <p style="font-size:13.5px;color:var(--blueDark);margin:0;line-height:1.5;">The correct answer is <strong>${esc(cur.card.term)}</strong> — ${esc(cur.card.definition)}</p>
+          ${cur.card.explanation ? `<p style="font-size:12.5px;color:var(--gray);margin:6px 0 0;line-height:1.5;">${esc(cur.card.explanation)}</p>` : ""}
         </div>`
   ) : "";
   return `
@@ -1095,7 +1107,7 @@ async function handleAction(action, el){
       if (result.error) { state.importError = result.error; render(); return; }
       state.importError = null;
       state.importParsedName = result.name || "";
-      state.importPreviewCards = result.cards.map(c => ({ id: uid(), term: c.term, definition: c.definition }));
+      state.importPreviewCards = result.cards.map(c => ({ id: uid(), term: c.term, definition: c.definition, explanation: c.explanation || "" }));
       render();
       return;
     }
@@ -1119,7 +1131,7 @@ async function handleAction(action, el){
         id: uid(),
         name: finalName,
         description: "",
-        cards: state.importPreviewCards.map(c => ({ id: uid(), term: c.term, definition: c.definition })),
+        cards: state.importPreviewCards.map(c => ({ id: uid(), term: c.term, definition: c.definition, explanation: c.explanation || "" })),
         folder: folderSelect ? (folderSelect.value || null) : null,
       };
       persistActiveSetEdit(newSet);
@@ -1145,7 +1157,7 @@ async function handleAction(action, el){
       state.view = "dashboard"; state.session = null; render(); break;
     case "new-set": {
       const defaultFolder = (state.activeFolder && state.activeFolder !== "__unfiled") ? state.activeFolder : null;
-      state.editorDraft = { id: uid(), name:"", description:"", cards:[{id:uid(),term:"",definition:""}], folder: defaultFolder, _isNew:true };
+      state.editorDraft = { id: uid(), name:"", description:"", cards:[{id:uid(),term:"",definition:"",explanation:""}], folder: defaultFolder, _isNew:true };
       state.editorReturnView = "dashboard";
       state.view = "editor"; render(); break;
     }
@@ -1163,7 +1175,7 @@ async function handleAction(action, el){
     case "cancel-editor":
       state.view = state.editorReturnView || "dashboard"; render(); break;
     case "add-card":
-      state.editorDraft.cards.push({id:uid(),term:"",definition:""}); render(); break;
+      state.editorDraft.cards.push({id:uid(),term:"",definition:"",explanation:""}); render(); break;
     case "remove-card": {
       const cardId = el.getAttribute("data-card-id");
       if (state.editorDraft.cards.length > 1) state.editorDraft.cards = state.editorDraft.cards.filter(c=>c.id!==cardId);
@@ -1172,7 +1184,9 @@ async function handleAction(action, el){
     case "save-set": {
       const d = state.editorDraft;
       const name = (d.name||"").trim();
-      const cleaned = d.cards.filter(c => c.term.trim() && c.definition.trim());
+      const cleaned = d.cards
+        .filter(c => c.term.trim() && c.definition.trim())
+        .map(c => ({ id: c.id, term: c.term.trim(), definition: c.definition.trim(), explanation: (c.explanation || "").trim() }));
       if (!name || cleaned.length===0) { showToast("Add a name and at least one complete card."); return; }
       persistActiveSetEdit({ id:d.id, name, description:(d.description||"").trim(), cards:cleaned, folder: d.folder || null });
       state.view = "dashboard"; render(); break;
