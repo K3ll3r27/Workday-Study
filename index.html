@@ -677,13 +677,15 @@ function viewLearn(){
   const s = getActiveSet();
   if (!s) { state.view="dashboard"; return viewDashboard(); }
   if (!state.session || state.session.mode !== "learn") {
-    state.session = { mode:"learn", queue: buildLearnQueue(s.cards), qi:0, selected:null, correct:0, total:0 };
+    state.session = { mode:"learn", queue: buildLearnQueue(s.cards), qi:0, selected:null, correct:0, total:0, missedIds:[] };
   }
   const ses = state.session;
   if (ses.qi >= ses.queue.length) {
+    const actions = [{label:"New round", action:"restart-learn", missed:"0"}];
+    if (ses.missedIds.length > 0) actions.push({label:"Review missed only", action:"restart-learn", missed:"1"});
     return summaryScreen("Round complete",
       [{label:"Correct", value:ses.correct, color:"var(--green)"},{label:"Missed", value: ses.total - ses.correct, color:"var(--red)"}],
-      [{label:"New round", action:"restart-learn"}]);
+      actions);
   }
   const cur = ses.queue[ses.qi];
   const pct = (ses.qi / ses.queue.length) * 100;
@@ -1055,7 +1057,11 @@ async function handleAction(action, el){
       const cur = ses.queue[ses.qi];
       ses.selected = optId;
       ses.total++;
-      if (optId === cur.card.id) ses.correct++;
+      if (optId === cur.card.id) {
+        ses.correct++;
+      } else if (!ses.missedIds.includes(cur.card.id)) {
+        ses.missedIds.push(cur.card.id);
+      }
       render();
       return;
     }
@@ -1068,7 +1074,14 @@ async function handleAction(action, el){
     }
     case "restart-learn": {
       const s = getActiveSet();
-      state.session = { mode:"learn", queue: buildLearnQueue(s.cards), qi:0, selected:null, correct:0, total:0 };
+      const wantMissedOnly = el.getAttribute("data-missed") === "1";
+      const prevMissedIds = (state.session && state.session.missedIds) || [];
+      let pool = s.cards;
+      if (wantMissedOnly) {
+        const missedCards = s.cards.filter(c => prevMissedIds.includes(c.id));
+        pool = missedCards.length ? missedCards : s.cards;
+      }
+      state.session = { mode:"learn", queue: buildLearnQueue(pool), qi:0, selected:null, correct:0, total:0, missedIds:[] };
       render(); break;
     }
 
