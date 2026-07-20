@@ -159,9 +159,10 @@ function saveFeedback(list){
 // When shared/cloud storage is added later, this function's OUTPUT (a plain
 // {name, description, cards} object) is exactly what gets written there too —
 // nothing else about this flow needs to change.
-const CLAUDE_IMPORT_PROMPT = `Turn the attached document into flashcards for studying. Return ONLY a JSON array (no markdown, no code fences, no extra commentary) where each item looks like:
-{"term": "...", "definition": "..."}
-Keep each definition to 1-3 concise sentences. Cover the key terms, concepts, and facts a student would actually be tested on.`;
+const CLAUDE_IMPORT_PROMPT = `Turn the attached document into flashcards for studying. If the document already contains a list of questions and answers, use those directly — question becomes "term", answer becomes "definition" — rather than inventing new ones. Otherwise, generate flashcards covering the key terms, concepts, and facts a student would actually be tested on, with each definition kept to 1-3 concise sentences.
+
+Return ONLY a JSON array (no markdown, no code fences, no extra commentary) where each item looks like:
+{"term": "...", "definition": "..."}`;
 
 // Loads the mammoth.js library on demand (only when someone actually
 // uploads a .docx) so the app has zero extra network cost otherwise.
@@ -305,11 +306,14 @@ function renderImportModal(){
       <div class="modal-box" data-stop="1" style="max-width:500px;">
         <h3 class="wd-h" style="font-size:16px;margin:0 0 4px;display:flex;align-items:center;gap:8px;">${ICONS.upload} Import from a document</h3>
         <p style="font-size:13px;color:var(--gray);margin:0 0 16px;line-height:1.5;">
-          Three steps: pull the text out of your document, send it to Claude with the prompt below, then paste the flashcards it gives you back here.
+          Three steps: get your document's content ready, send it to Claude or Copilot with the prompt below, then paste the flashcards it gives you back here.
         </p>
 
         <div style="border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:14px;">
-          <p style="font-size:12.5px;font-weight:700;color:var(--blueDark);margin:0 0 8px;">STEP 1 — Extract text from your document</p>
+          <p style="font-size:12.5px;font-weight:700;color:var(--blueDark);margin:0 0 8px;">STEP 1 — Get your document's text</p>
+          <p style="font-size:12.5px;color:var(--gray);margin:0 0 10px;line-height:1.5;">
+            If your document has important <strong>images or diagrams</strong>, skip this and instead upload the original .docx file directly in your Claude or Copilot chat — that way it can actually see the images. This extractor below only pulls out plain text.
+          </p>
           <label class="btn-secondary" style="cursor:pointer;font-size:13px;display:inline-flex;align-items:center;gap:6px;">
             ${ICONS.upload} Upload a Word doc (.docx) or .txt
             <input type="file" id="import-extract-input" accept=".docx,.txt,.md" style="display:none;">
@@ -322,8 +326,8 @@ function renderImportModal(){
         </div>
 
         <div style="border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:14px;">
-          <p style="font-size:12.5px;font-weight:700;color:var(--blueDark);margin:0 0 8px;">STEP 2 — Send it to Claude</p>
-          <p style="font-size:12.5px;color:var(--gray);margin:0 0 8px;">Open a Claude conversation, paste the copied text, then paste this prompt too:</p>
+          <p style="font-size:12.5px;font-weight:700;color:var(--blueDark);margin:0 0 8px;">STEP 2 — Send it to Claude or Copilot</p>
+          <p style="font-size:12.5px;color:var(--gray);margin:0 0 8px;">Paste the copied text (or attach the original file), then paste this prompt too:</p>
           <div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:10px 12px;font-size:12px;color:var(--blueDark);margin-bottom:8px;white-space:pre-wrap;line-height:1.5;">${esc(CLAUDE_IMPORT_PROMPT)}</div>
           <button class="btn-secondary" data-action="copy-import-prompt" style="display:inline-flex;align-items:center;gap:6px;font-size:13px;padding:7px 12px;">${ICONS.copy} Copy prompt</button>
         </div>
