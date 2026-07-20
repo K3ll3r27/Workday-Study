@@ -56,9 +56,24 @@
     .match-grid{grid-template-columns:repeat(2,1fr);}
   }
   @media (prefers-reduced-motion: reduce){ .wd-card,.btn-primary,.flip-inner{transition:none!important;} }
+
+  #splash{position:fixed;inset:0;background:var(--blueDark);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;z-index:200;transition:opacity .4s ease;}
+  #splash.fade-out{opacity:0;pointer-events:none;}
+  #splash-logo-slot{animation:splashPulse 1.5s ease-in-out infinite;}
+  @keyframes splashPulse{0%,100%{transform:scale(1);opacity:1;}50%{transform:scale(1.07);opacity:.85;}}
+  .splash-text{font-family:'Sora',sans-serif;color:#fff;font-size:19px;font-weight:700;letter-spacing:.4px;}
+  @media (prefers-reduced-motion: reduce){ #splash-logo-slot{animation:none;} }
+
+  #main-slot.view-enter{opacity:0;transform:translateY(8px);}
+  #main-slot.view-enter-active{opacity:1;transform:translateY(0);transition:opacity .28s ease,transform .28s ease;}
+  @media (prefers-reduced-motion: reduce){ #main-slot.view-enter,#main-slot.view-enter-active{opacity:1;transform:none;transition:none;} }
 </style>
 </head>
 <body>
+<div id="splash">
+  <div id="splash-logo-slot"></div>
+  <div class="splash-text">studyday</div>
+</div>
 <div id="root"></div>
 
 <script>
@@ -355,8 +370,12 @@ function deleteSet(id){
 }
 
 /* ---------------- Render root ---------------- */
+let lastRenderedView = null;
+
 function render(){
   const root = document.getElementById("root");
+  const viewChanged = state.view !== lastRenderedView;
+  lastRenderedView = state.view;
   root.innerHTML = `
     <header class="wd-header">
       <div class="wd-header-inner">
@@ -380,6 +399,13 @@ function render(){
   const main = document.getElementById("main-slot");
   main.innerHTML = renderView();
   bindEvents();
+  if (viewChanged) {
+    main.classList.add("view-enter");
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => { main.classList.add("view-enter-active"); });
+    });
+    setTimeout(() => { main.classList.remove("view-enter", "view-enter-active"); }, 300);
+  }
 }
 
 function renderView(){
@@ -921,6 +947,15 @@ document.getElementById("root").addEventListener("click", (e) => {
   handleAction(actionEl.getAttribute("data-action"), actionEl);
 });
 render();
+
+const splashLogoSlot = document.getElementById("splash-logo-slot");
+if (splashLogoSlot) splashLogoSlot.innerHTML = logoMark(56);
+setTimeout(() => {
+  const splash = document.getElementById("splash");
+  if (!splash) return;
+  splash.classList.add("fade-out");
+  setTimeout(() => splash.remove(), 450);
+}, 600);
 </script>
 </body>
 </html>
