@@ -462,17 +462,38 @@ function viewAdminHub(){
     </div>
   `;
 
+  const certificates = loadCertificates().slice().sort((a,b) => b.submittedAt - a.submittedAt);
+  const certsPanel = `
+    <h2 class="wd-h" style="font-size:19px;margin:0 0 14px;">Certificates</h2>
+    ${certificates.length === 0 ? `<p style="font-size:13px;color:var(--gray);">No certificate photos posted yet.</p>` : `
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:14px;">
+        ${certificates.map(c => `
+          <div class="wd-card" style="overflow:hidden;">
+            <img src="${c.photo}" style="width:100%;height:130px;object-fit:cover;display:block;">
+            <div style="padding:10px 12px;">
+              <p style="font-size:13px;font-weight:600;color:var(--blueDark);margin:0 0 3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(c.employeeName)}</p>
+              <p style="font-size:11px;color:var(--orange);font-weight:600;margin:0 0 2px;">${esc(c.certification)}</p>
+              <p style="font-size:10.5px;color:var(--gray);margin:0 0 8px;">${new Date(c.dateEarned).toLocaleDateString()}</p>
+              <button class="btn-ghost" data-action="admin-delete-cert" data-id="${c.id}" style="font-size:12px;padding:4px 9px;border:1px solid var(--border);border-radius:999px;color:var(--red);display:inline-flex;align-items:center;gap:5px;">${ICONS.trash} Delete</button>
+            </div>
+          </div>
+        `).join("")}
+      </div>
+    `}
+  `;
+
   return `
     <div class="admin-hub-wrap">
       <div class="admin-sidebar">
         <p style="font-size:11px;letter-spacing:1px;font-weight:700;color:var(--gray);padding:0 10px;margin:0 0 6px;">ADMIN HUB</p>
         ${navItem("tickets", "Tickets", openCount > 0 ? openCount : null)}
+        ${navItem("certificates", "Certificates", certificates.length > 0 ? certificates.length : null)}
         ${navItem("code", "Code updates", null)}
         <div style="border-top:1px solid var(--border);margin:10px 0;"></div>
         <button class="folder-item" data-action="exit-admin-hub">${ICONS.back} Back to StudyDay</button>
       </div>
       <div class="admin-main">
-        ${section === "code" ? codePanel : ticketsPanel}
+        ${section === "code" ? codePanel : section === "certificates" ? certsPanel : ticketsPanel}
       </div>
     </div>
   `;
@@ -1549,6 +1570,14 @@ async function handleAction(action, el){
       state.adminTicketFilter = el.getAttribute("data-filter");
       render();
       return;
+    case "admin-delete-cert": {
+      const id = el.getAttribute("data-id");
+      const list = loadCertificates().filter(c => c.id !== id);
+      saveCertificates(list);
+      showToast("Certificate removed.");
+      render();
+      return;
+    }
     case "open-sidebar":
       state.sidebarOpen = true; render(); return;
     case "open-move-folder":
