@@ -168,6 +168,71 @@ function saveSets(sets){
 
 /* ---------------- Feedback / future-fixes notes ---------------- */
 const FEEDBACK_KEY = "wd_feedback_v1";
+/* ---------------- Employee identity & progress tracking ---------------- */
+const EMPLOYEES_KEY = "wd_employees_v1";
+const PROGRESS_KEY = "wd_progress_v1";
+const CURRENT_EMPLOYEE_KEY = "wd_current_employee_id"; // sessionStorage — resets when the tab closes, like the site login
+
+function loadEmployees(){
+  try { const raw = localStorage.getItem(EMPLOYEES_KEY); return raw ? JSON.parse(raw) : []; } catch(e) { return []; }
+}
+function saveEmployees(list){
+  try { localStorage.setItem(EMPLOYEES_KEY, JSON.stringify(list)); } catch(e) {}
+}
+function loadProgress(){
+  try { const raw = localStorage.getItem(PROGRESS_KEY); return raw ? JSON.parse(raw) : {}; } catch(e) { return {}; }
+}
+function saveProgress(obj){
+  try { localStorage.setItem(PROGRESS_KEY, JSON.stringify(obj)); } catch(e) {}
+}
+function getEmployeeProgress(progressStore, employeeId){
+  if (!progressStore[employeeId]) {
+    progressStore[employeeId] = { totalTimeMs: 0, learnCorrect: 0, learnTotal: 0, mastered: {} };
+  }
+  return progressStore[employeeId];
+}
+function recordMastered(employeeId, setId, cardId){
+  const store = loadProgress();
+  const p = getEmployeeProgress(store, employeeId);
+  if (!p.mastered[setId]) p.mastered[setId] = [];
+  if (!p.mastered[setId].includes(cardId)) p.mastered[setId].push(cardId);
+  saveProgress(store);
+}
+function recordLearnAnswer(employeeId, correct){
+  const store = loadProgress();
+  const p = getEmployeeProgress(store, employeeId);
+  p.learnTotal++;
+  if (correct) p.learnCorrect++;
+  saveProgress(store);
+}
+function addStudyTime(employeeId, ms){
+  const store = loadProgress();
+  const p = getEmployeeProgress(store, employeeId);
+  p.totalTimeMs += ms;
+  saveProgress(store);
+}
+function formatDuration(ms){
+  const mins = Math.round(ms / 60000);
+  if (mins < 1) return "< 1 min";
+  if (mins < 60) return `${mins} min`;
+  const h = Math.floor(mins / 60), m = mins % 60;
+  return m ? `${h}h ${m}m` : `${h}h`;
+}
+function overallMasteryPct(employeeId, sets){
+  const store = loadProgress();
+  const p = getEmployeeProgress(store, employeeId);
+  const totalCards = sets.reduce((sum,s) => sum + s.cards.length, 0);
+  if (totalCards === 0) return 0;
+  const masteredCount = Object.values(p.mastered).reduce((sum, arr) => sum + arr.length, 0);
+  return Math.min(100, Math.round((masteredCount / totalCards) * 100));
+}
+function accuracyPct(employeeId){
+  const store = loadProgress();
+  const p = getEmployeeProgress(store, employeeId);
+  if (p.learnTotal === 0) return null;
+  return Math.round((p.learnCorrect / p.learnTotal) * 100);
+}
+
 function loadFeedback(){
   try {
     const raw = localStorage.getItem(FEEDBACK_KEY);
@@ -363,6 +428,151 @@ function viewAdminHub(){
   `;
 }
 
+/* ---------------- "Who's studying?" PIN gate ---------------- */
+function viewPinGate(){
+  const employees = loadEmployees();
+
+  if (state.pinGateRegistering) {
+    return `
+      <div style="max-width:380px;margin:60px auto;text-align:center;">
+        <h2 class="wd-h" style="font-size:20px;margin:0 0 6px;">Set up your profile</h2>
+        <p style="font-size:13px;color:var(--gray);margin:0 0 20px;">Pick a name and a 4-digit PIN — you'll use these to check in next time.</p>
+        <input class="wd-input" id="pin-reg-name" placeholder="Your name" style="margin-bottom:10px;">
+        <input class="wd-input" id="pin-reg-pin" type="password" inputmode="numeric" maxlength="4" placeholder="4-digit PIN" style="margin-bottom:10px;">
+        <input class="wd-input" id="pin-reg-pin2" type="password" inputmode="numeric" maxlength="4" placeholder="Confirm PIN" style="margin-bottom:6px;">
+        ${state.pinGateError ? `<p style="color:var(--red);font-size:12.5px;margin:6px 0 12px;">${esc(state.pinGateError)}</p>` : ""}
+        <button class="btn-primary" data-action="pin-register-submit" style="width:100%;margin-top:10px;">Create profile</button>
+        <button class="btn-ghost" data-action="pin-back" style="margin-top:10px;">${ICONS.back} Back</button>
+      </div>`;
+  }
+
+  if (state.pinGateSelectedId) {
+    const emp = employees.find(e => e.id === state.pinGateSelectedId);
+    if (!emp) { state.pinGateSelectedId = null; return viewPinGate(); }
+    return `
+      <div style="max-width:340px;margin:70px auto;text-align:center;">
+        <h2 class="wd-h" style="font-size:20px;margin:0 0 6px;">Hey, ${esc(emp.name)}</h2>
+        <p style="font-size:13px;color:var(--gray);margin:0 0 20px;">Enter your PIN to continue.</p>
+        <input class="wd-input" id="pin-enter-input" type="password" inputmode="numeric" maxlength="4" placeholder="4-digit PIN" style="text-align:center;font-size:20px;letter-spacing:6px;margin-bottom:6px;" autofocus>
+        ${state.pinGateError ? `<p style="color:var(--red);font-size:12.5px;margin:6px 0 0;">${esc(state.pinGateError)}</p>` : ""}
+        <button class="btn-primary" data-action="pin-submit" style="width:100%;margin-top:16px;">Continue</button>
+        <button class="btn-ghost" data-action="pin-back" style="margin-top:10px;">${ICONS.back} Not you?</button>
+      </div>`;
+  }
+
+  return `
+    <div style="max-width:420px;margin:60px auto;text-align:center;">
+      <h2 class="wd-h" style="font-size:20px;margin:0 0 6px;">Who's studying?</h2>
+      <p style="font-size:13px;color:var(--gray);margin:0 0 20px;">Pick your name to check in — this is how your progress and the leaderboard get tracked.</p>
+      ${employees.length > 0 ? `
+        <div style="display:grid;gap:8px;margin-bottom:16px;">
+          ${employees.map(e => `
+            <button class="wd-card clickable" style="padding:14px;text-align:left;display:flex;align-items:center;gap:10px;" data-action="pin-select-employee" data-id="${e.id}">
+              <div class="icon-box" style="color:var(--blue);">${ICONS.layers}</div>
+              <span class="wd-h" style="font-size:15px;">${esc(e.name)}</span>
+            </button>
+          `).join("")}
+        </div>
+      ` : `<p style="font-size:13px;color:var(--gray);margin-bottom:16px;">No one's checked in on this device yet.</p>`}
+      <button class="btn-secondary" data-action="pin-start-register" style="display:inline-flex;align-items:center;gap:6px;">${ICONS.plus} I'm new here</button>
+    </div>`;
+}
+
+/* ---------------- Leaderboard & personal progress ---------------- */
+function viewLeaderboard(){
+  const employees = loadEmployees();
+  const me = employees.find(e => e.id === state.currentEmployeeId);
+  const tab = state.leaderboardTab || "ranking";
+
+  const rows = employees.map(e => ({
+    id: e.id, name: e.name,
+    mastery: overallMasteryPct(e.id, state.sets),
+    accuracy: accuracyPct(e.id),
+    time: (loadProgress()[e.id] || {}).totalTimeMs || 0,
+  }));
+  const sortKey = state.leaderboardSort;
+  rows.sort((a,b) => {
+    if (sortKey === "accuracy") return (b.accuracy||0) - (a.accuracy||0);
+    if (sortKey === "time") return b.time - a.time;
+    return b.mastery - a.mastery;
+  });
+
+  const tabs = `
+    <div style="display:flex;gap:6px;margin-bottom:20px;">
+      <button class="btn-ghost" data-action="leaderboard-tab" data-tab="ranking" style="font-size:13px;padding:7px 14px;border-radius:999px;border:1px solid ${tab==="ranking"?"var(--blue)":"var(--border)"};color:${tab==="ranking"?"var(--blue)":"var(--gray)"};">${ICONS.trophy} Leaderboard</button>
+      <button class="btn-ghost" data-action="leaderboard-tab" data-tab="mine" style="font-size:13px;padding:7px 14px;border-radius:999px;border:1px solid ${tab==="mine"?"var(--blue)":"var(--border)"};color:${tab==="mine"?"var(--blue)":"var(--gray)"};">My progress</button>
+    </div>`;
+
+  if (tab === "mine") {
+    if (!me) return `<button class="btn-ghost" data-action="go-home" style="margin-bottom:16px;">${ICONS.back} Back</button>${tabs}<p style="color:var(--gray);font-size:13px;">Check in with your name first to see your progress.</p>`;
+    const myMastery = overallMasteryPct(me.id, state.sets);
+    const myAccuracy = accuracyPct(me.id);
+    const myTime = (loadProgress()[me.id] || {}).totalTimeMs || 0;
+    return `
+      <button class="btn-ghost" data-action="go-home" style="margin-bottom:16px;">${ICONS.back} Back</button>
+      ${tabs}
+      <h2 class="wd-h" style="font-size:20px;margin:0 0 16px;">${esc(me.name)}'s progress</h2>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:14px;margin-bottom:26px;">
+        <div class="wd-card" style="padding:18px;text-align:center;">
+          <div class="wd-h" style="font-size:26px;color:var(--orange);">${myMastery}%</div>
+          <div style="font-size:12px;color:var(--gray);">Overall mastery</div>
+        </div>
+        <div class="wd-card" style="padding:18px;text-align:center;">
+          <div class="wd-h" style="font-size:26px;color:var(--blue);">${myAccuracy===null?"—":myAccuracy+"%"}</div>
+          <div style="font-size:12px;color:var(--gray);">Learn accuracy</div>
+        </div>
+        <div class="wd-card" style="padding:18px;text-align:center;">
+          <div class="wd-h" style="font-size:26px;color:var(--green);">${formatDuration(myTime)}</div>
+          <div style="font-size:12px;color:var(--gray);">Time studied</div>
+        </div>
+      </div>
+      <h3 class="wd-h" style="font-size:15px;margin:0 0 10px;">By set — what to focus on next</h3>
+      ${state.sets.length === 0 ? `<p style="font-size:13px;color:var(--gray);">No sets yet.</p>` : `
+        <div style="display:grid;gap:10px;">
+          ${state.sets.map(s => {
+            const store = loadProgress();
+            const p = getEmployeeProgress(store, me.id);
+            const masteredCount = (p.mastered[s.id] || []).length;
+            const pct = s.cards.length ? Math.round((masteredCount/s.cards.length)*100) : 0;
+            return `
+              <div class="wd-card" style="padding:14px;">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+                  <span style="font-size:13.5px;color:var(--blueDark);font-weight:600;">${esc(s.name)}</span>
+                  <span style="font-size:12px;color:var(--gray);">${masteredCount}/${s.cards.length} mastered</span>
+                </div>
+                <div class="progress-track"><div class="progress-fill" style="width:${pct}%;"></div></div>
+              </div>`;
+          }).join("")}
+        </div>
+      `}
+    `;
+  }
+
+  return `
+    <button class="btn-ghost" data-action="go-home" style="margin-bottom:16px;">${ICONS.back} Back</button>
+    ${tabs}
+    <h2 class="wd-h" style="font-size:20px;margin:0 0 4px;">Leaderboard</h2>
+    <p style="font-size:13px;color:var(--gray);margin:0 0 18px;">Ranked on this device — everyone will show up together once shared sync is on.</p>
+    <div style="display:flex;gap:6px;margin-bottom:14px;">
+      ${[["mastery","Mastery"],["accuracy","Accuracy"],["time","Time studied"]].map(([key,label]) => `
+        <button class="btn-ghost" data-action="leaderboard-sort" data-sort="${key}" style="font-size:12px;padding:5px 11px;border-radius:999px;border:1px solid ${sortKey===key?"var(--blue)":"var(--border)"};color:${sortKey===key?"var(--blue)":"var(--gray)"};">${label}</button>
+      `).join("")}
+    </div>
+    ${rows.length === 0 ? `<p style="font-size:13px;color:var(--gray);">No one's checked in on this device yet.</p>` : `
+      <div style="display:grid;gap:8px;">
+        ${rows.map((r,i) => `
+          <div class="wd-card" style="padding:14px 16px;display:flex;align-items:center;gap:14px;${r.id===state.currentEmployeeId?"border-color:var(--orange);":""}">
+            <span class="wd-h" style="font-size:16px;color:var(--gray);width:24px;">${i+1}</span>
+            <span style="flex:1;font-size:14px;color:var(--blueDark);font-weight:600;">${esc(r.name)}${r.id===state.currentEmployeeId?" (you)":""}</span>
+            <span style="font-size:13px;color:var(--orange);width:52px;text-align:right;">${r.mastery}%</span>
+            <span style="font-size:13px;color:var(--blue);width:52px;text-align:right;">${r.accuracy===null?"—":r.accuracy+"%"}</span>
+            <span style="font-size:13px;color:var(--green);width:70px;text-align:right;">${formatDuration(r.time)}</span>
+          </div>
+        `).join("")}
+      </div>
+    `}
+  `;
+}
 function renderFeedbackModal(){
   if (!state.feedbackModalOpen) return "";
   const notes = state.feedback;
@@ -598,6 +808,12 @@ let state = {
   feedback: loadFeedback(),
   adminTicketFilter: "all",
   adminSection: "tickets",
+  currentEmployeeId: null,
+  pinGateSelectedId: null,
+  pinGateRegistering: false,
+  pinGateError: null,
+  leaderboardTab: "ranking",
+  leaderboardSort: "mastery",
   importModalOpen: false,
   importError: null,
   extractedText: "",
@@ -658,6 +874,11 @@ function render(){
           </button>
         </div>
         <div style="display:flex;align-items:center;gap:14px;">
+          ${(() => {
+            const emp = state.currentEmployeeId ? loadEmployees().find(e=>e.id===state.currentEmployeeId) : null;
+            return emp ? `<span style="color:var(--gray);font-size:13px;display:flex;align-items:center;gap:5px;">${esc(emp.name)} <button class="btn-ghost" data-action="switch-employee" style="font-size:11px;padding:2px 6px;">Switch</button></span>` : "";
+          })()}
+          <button class="btn-ghost" data-action="open-leaderboard" title="Leaderboard" style="padding:4px;">${ICONS.trophy}</button>
           <span style="color:var(--gray);font-size:13px;">Saved on this device only</span>
           <button class="btn-ghost" data-action="open-feedback" title="Notes for future updates" style="padding:4px;">${ICONS.comment}</button>
           <button class="btn-ghost" data-action="open-admin" title="Admin" style="padding:4px;">${ICONS.lock}</button>
@@ -693,6 +914,8 @@ function renderView(){
     case "learn": return viewLearn();
     case "match": return viewMatch();
     case "admin-hub": return viewAdminHub();
+    case "pin-gate": return viewPinGate();
+    case "leaderboard": return viewLeaderboard();
     default: return "";
   }
 }
@@ -1276,6 +1499,70 @@ async function handleAction(action, el){
       render();
       return;
     }
+    case "pin-select-employee":
+      state.pinGateSelectedId = el.getAttribute("data-id"); state.pinGateError = null; render(); return;
+    case "pin-back":
+      state.pinGateSelectedId = null; state.pinGateRegistering = false; state.pinGateError = null; render(); return;
+    case "pin-start-register":
+      state.pinGateRegistering = true; state.pinGateError = null; render(); return;
+    case "pin-submit": {
+      const inp = document.getElementById("pin-enter-input");
+      const pin = inp ? inp.value.trim() : "";
+      const employees = loadEmployees();
+      const emp = employees.find(e => e.id === state.pinGateSelectedId);
+      if (!emp) { state.pinGateError = "Something went wrong — try again."; render(); return; }
+      const hash = await sha256Hex(emp.name.toLowerCase() + "|" + pin);
+      if (hash === emp.pinHash) {
+        state.currentEmployeeId = emp.id;
+        try { sessionStorage.setItem(CURRENT_EMPLOYEE_KEY, emp.id); } catch(e) {}
+        state.pinGateSelectedId = null; state.pinGateError = null;
+        state.view = "dashboard";
+        render();
+      } else {
+        state.pinGateError = "Incorrect PIN.";
+        render();
+      }
+      return;
+    }
+    case "pin-register-submit": {
+      const nameInp = document.getElementById("pin-reg-name");
+      const pinInp = document.getElementById("pin-reg-pin");
+      const pin2Inp = document.getElementById("pin-reg-pin2");
+      const name = nameInp ? nameInp.value.trim() : "";
+      const pin = pinInp ? pinInp.value.trim() : "";
+      const pin2 = pin2Inp ? pin2Inp.value.trim() : "";
+      if (!name) { state.pinGateError = "Enter your name."; render(); return; }
+      if (!/^\d{4}$/.test(pin)) { state.pinGateError = "PIN must be exactly 4 digits."; render(); return; }
+      if (pin !== pin2) { state.pinGateError = "PINs don't match."; render(); return; }
+      const employees = loadEmployees();
+      if (employees.some(e => e.name.toLowerCase() === name.toLowerCase())) {
+        state.pinGateError = "That name is already checked in on this device — pick your name from the list instead.";
+        render(); return;
+      }
+      const hash = await sha256Hex(name.toLowerCase() + "|" + pin);
+      const newEmp = { id: uid(), name, pinHash: hash, createdAt: Date.now() };
+      employees.push(newEmp);
+      saveEmployees(employees);
+      state.currentEmployeeId = newEmp.id;
+      try { sessionStorage.setItem(CURRENT_EMPLOYEE_KEY, newEmp.id); } catch(e) {}
+      state.pinGateRegistering = false; state.pinGateError = null;
+      state.view = "dashboard";
+      render();
+      return;
+    }
+    case "switch-employee":
+      state.currentEmployeeId = null;
+      try { sessionStorage.removeItem(CURRENT_EMPLOYEE_KEY); } catch(e) {}
+      state.pinGateSelectedId = null; state.pinGateRegistering = false; state.pinGateError = null;
+      state.view = "pin-gate";
+      render();
+      return;
+    case "open-leaderboard":
+      state.view = "leaderboard"; render(); return;
+    case "leaderboard-tab":
+      state.leaderboardTab = el.getAttribute("data-tab"); render(); return;
+    case "leaderboard-sort":
+      state.leaderboardSort = el.getAttribute("data-sort"); render(); return;
     case "go-home":
       state.view = "dashboard"; state.session = null; render(); break;
     case "new-set": {
@@ -1345,6 +1632,7 @@ async function handleAction(action, el){
       const card = s.cards[state.session.order[state.session.i]];
       state.session.known[card.id] = mark;
       state.session.flipped = false;
+      if (mark === "known" && state.currentEmployeeId) recordMastered(state.currentEmployeeId, s.id, card.id);
       setTimeout(() => { state.session.i++; state.session._advancing = false; render(); }, 120);
       return;
     }
@@ -1374,10 +1662,15 @@ async function handleAction(action, el){
       const cur = ses.queue[ses.qi];
       ses.selected = optId;
       ses.total++;
-      if (optId === cur.card.id) {
+      const wasRight = optId === cur.card.id;
+      if (wasRight) {
         ses.correct++;
       } else if (!ses.missedIds.includes(cur.card.id)) {
         ses.missedIds.push(cur.card.id);
+      }
+      if (state.currentEmployeeId) {
+        recordLearnAnswer(state.currentEmployeeId, wasRight);
+        if (wasRight) { const s = getActiveSet(); recordMastered(state.currentEmployeeId, s.id, cur.card.id); }
       }
       render();
       return;
@@ -1464,6 +1757,14 @@ function clearSession(){
 }
 
 function startApp(){
+  try {
+    const savedEmployeeId = sessionStorage.getItem(CURRENT_EMPLOYEE_KEY);
+    if (savedEmployeeId && loadEmployees().some(e => e.id === savedEmployeeId)) {
+      state.currentEmployeeId = savedEmployeeId;
+    } else {
+      state.view = "pin-gate";
+    }
+  } catch(e) { state.view = "pin-gate"; }
   render();
   const splashLogoSlot = document.getElementById("splash-logo-slot");
   if (splashLogoSlot) splashLogoSlot.innerHTML = logoMark(56);
@@ -1494,6 +1795,13 @@ function setupActivityTracking(){
       forceLogout("Your session timed out after 5 minutes — please log in again.");
     }
   }, 15000);
+  // Credit active study time to whoever is checked in, in 30s increments,
+  // but only while they've interacted recently (not just sitting idle).
+  setInterval(() => {
+    if (state.currentEmployeeId && (Date.now() - getLastActivity() < 60000)) {
+      addStudyTime(state.currentEmployeeId, 30000);
+    }
+  }, 30000);
 }
 
 function forceLogout(message){
