@@ -80,6 +80,14 @@
   .folder-item:hover{background:var(--bg);}
   .folder-item.active{background:#EEF4FC;color:var(--blue);font-weight:600;}
   @media (prefers-reduced-motion: reduce){ .sidebar-panel{animation:none;} }
+
+  .admin-hub-wrap{display:flex;gap:28px;align-items:flex-start;}
+  .admin-sidebar{width:200px;flex-shrink:0;display:flex;flex-direction:column;gap:2px;position:sticky;top:20px;}
+  .admin-main{flex:1;min-width:0;}
+  @media (max-width:760px){
+    .admin-hub-wrap{flex-direction:column;}
+    .admin-sidebar{width:100%;flex-direction:row;flex-wrap:wrap;position:static;}
+  }
 </style>
 </head>
 <body>
@@ -265,81 +273,94 @@ async function sha256Hex(str){
 }
 function renderAdminModal(){
   if (!state.adminModalOpen) return "";
-  if (!state.adminUnlocked) {
-    return `
-      <div class="modal-overlay" data-action="close-admin-bg">
-        <div class="modal-box" data-stop="1">
-          <h3 class="wd-h" style="font-size:16px;margin:0 0 4px;display:flex;align-items:center;gap:8px;">${ICONS.lock} Admin access</h3>
-          <p style="font-size:13px;color:var(--gray);margin:0 0 14px;">Enter the passcode to continue.</p>
-          <input class="wd-input" type="password" id="admin-passcode-input" placeholder="Passcode" autocomplete="off">
-          ${state.adminError ? `<p style="color:var(--red);font-size:12.5px;margin:8px 0 0;">Incorrect passcode.</p>` : ""}
-          <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px;">
-            <button class="btn-secondary" data-action="close-admin">Cancel</button>
-            <button class="btn-primary" data-action="submit-admin-passcode">Unlock</button>
-          </div>
+  return `
+    <div class="modal-overlay" data-action="close-admin-bg">
+      <div class="modal-box" data-stop="1">
+        <h3 class="wd-h" style="font-size:16px;margin:0 0 4px;display:flex;align-items:center;gap:8px;">${ICONS.lock} Admin access</h3>
+        <p style="font-size:13px;color:var(--gray);margin:0 0 14px;">Enter the passcode to continue.</p>
+        <input class="wd-input" type="password" id="admin-passcode-input" placeholder="Passcode" autocomplete="off">
+        ${state.adminError ? `<p style="color:var(--red);font-size:12.5px;margin:8px 0 0;">Incorrect passcode.</p>` : ""}
+        <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px;">
+          <button class="btn-secondary" data-action="close-admin">Cancel</button>
+          <button class="btn-primary" data-action="submit-admin-passcode">Unlock</button>
         </div>
-      </div>`;
-  }
+      </div>
+    </div>`;
+}
+
+function viewAdminHub(){
   const statusFilters = ["all", "Open", "In Progress", "Resolved"];
   const tickets = state.feedback
     .slice()
     .sort((a,b) => b.at - a.at)
     .filter(t => state.adminTicketFilter === "all" || t.status === state.adminTicketFilter);
   const openCount = state.feedback.filter(t => t.status === "Open").length;
+  const section = state.adminSection || "tickets";
 
-  return `
-    <div class="modal-overlay" data-action="close-admin-bg">
-      <div class="modal-box" data-stop="1" style="max-width:600px;">
-        <h3 class="wd-h" style="font-size:16px;margin:0 0 4px;display:flex;align-items:center;gap:8px;">${ICONS.lock} Admin Hub</h3>
-        <p style="font-size:13px;color:var(--gray);margin:0 0 16px;">Manage tickets and push code changes from here.</p>
+  const navItem = (id, label, badge) => `
+    <button class="folder-item ${section === id ? "active" : ""}" data-action="admin-select-section" data-section="${id}">
+      <span>${label}</span>
+      ${badge ? `<span style="font-size:11px;color:var(--orange);font-weight:700;">${badge}</span>` : ""}
+    </button>`;
 
-        <div style="border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:14px;">
-          <p style="font-size:12.5px;font-weight:700;color:var(--blueDark);margin:0 0 8px;">CODE UPDATES</p>
-          <p style="font-size:12.5px;color:var(--gray);margin:0 0 10px;line-height:1.5;">Open a Claude conversation and describe what you want updated — Claude edits the code and pushes it, then this page redeploys automatically.</p>
-          <a href="https://claude.ai/new" target="_blank" rel="noopener" class="btn-primary" style="display:inline-flex;align-items:center;gap:6px;text-decoration:none;">Open Claude to make a change</a>
-        </div>
-
-        <div style="border:1px solid var(--border);border-radius:10px;padding:14px;">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px;">
-            <p style="font-size:12.5px;font-weight:700;color:var(--blueDark);margin:0;">TICKETS ${openCount > 0 ? `<span style="color:var(--orange);">(${openCount} open)</span>` : ""}</p>
-            <div style="display:flex;gap:4px;flex-wrap:wrap;">
-              ${statusFilters.map(f => `
-                <button class="btn-ghost" data-action="admin-filter-tickets" data-filter="${f}" style="font-size:11.5px;padding:4px 9px;border-radius:999px;border:1px solid ${state.adminTicketFilter===f?"var(--blue)":"var(--border)"};color:${state.adminTicketFilter===f?"var(--blue)":"var(--gray)"};">${f === "all" ? "All" : f}</button>
+  const ticketsPanel = `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:8px;">
+      <h2 class="wd-h" style="font-size:19px;margin:0;">Tickets</h2>
+      <div style="display:flex;gap:5px;flex-wrap:wrap;">
+        ${statusFilters.map(f => `
+          <button class="btn-ghost" data-action="admin-filter-tickets" data-filter="${f}" style="font-size:12px;padding:5px 11px;border-radius:999px;border:1px solid ${state.adminTicketFilter===f?"var(--blue)":"var(--border)"};color:${state.adminTicketFilter===f?"var(--blue)":"var(--gray)"};">${f === "all" ? "All" : f}</button>
+        `).join("")}
+      </div>
+    </div>
+    ${tickets.length === 0 ? `<p style="font-size:13px;color:var(--gray);">No tickets here.</p>` : `
+      <div style="display:grid;gap:10px;">
+        ${tickets.map(t => `
+          <div class="wd-card" style="padding:14px;">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
+              <div style="flex:1;">
+                <div style="display:flex;gap:8px;margin-bottom:5px;flex-wrap:wrap;">
+                  <span style="font-size:11px;font-weight:700;color:${PRIORITY_COLOR[t.priority]};">${esc(t.priority)} priority</span>
+                  <span style="font-size:11px;color:var(--gray);">· ${esc(t.category)}</span>
+                  <span style="font-size:11px;color:var(--gray);">· ${new Date(t.at).toLocaleDateString()}</span>
+                </div>
+                <p style="font-size:14px;margin:0;color:var(--blueDark);line-height:1.5;">${esc(t.text)}</p>
+              </div>
+              <button class="btn-ghost" data-action="delete-feedback" data-id="${t.id}" title="Delete ticket">${ICONS.trash}</button>
+            </div>
+            <div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap;">
+              ${["Open","In Progress","Resolved"].map(s => `
+                <button class="btn-ghost" data-action="admin-set-ticket-status" data-id="${t.id}" data-status="${s}"
+                  style="font-size:12px;padding:5px 11px;border-radius:999px;border:1px solid ${t.status===s?STATUS_COLOR[s]:"var(--border)"};color:${t.status===s?STATUS_COLOR[s]:"var(--gray)"};background:${t.status===s?STATUS_COLOR[s]+"18":"transparent"};">${s}</button>
               `).join("")}
             </div>
           </div>
-          ${tickets.length === 0 ? `<p style="font-size:12.5px;color:var(--gray);margin:0;">No tickets here.</p>` : `
-            <div style="display:grid;gap:8px;max-height:320px;overflow-y:auto;">
-              ${tickets.map(t => `
-                <div style="border:1px solid var(--border);border-radius:8px;padding:10px;">
-                  <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
-                    <div style="flex:1;">
-                      <div style="display:flex;gap:6px;margin-bottom:4px;flex-wrap:wrap;">
-                        <span style="font-size:10.5px;font-weight:700;color:${PRIORITY_COLOR[t.priority]};">${esc(t.priority)} priority</span>
-                        <span style="font-size:10.5px;color:var(--gray);">· ${esc(t.category)}</span>
-                        <span style="font-size:10.5px;color:var(--gray);">· ${new Date(t.at).toLocaleDateString()}</span>
-                      </div>
-                      <p style="font-size:13px;margin:0;color:var(--blueDark);line-height:1.4;">${esc(t.text)}</p>
-                    </div>
-                    <button class="btn-ghost" data-action="delete-feedback" data-id="${t.id}" title="Delete ticket" style="padding:2px;">${ICONS.trash}</button>
-                  </div>
-                  <div style="display:flex;gap:5px;margin-top:8px;flex-wrap:wrap;">
-                    ${["Open","In Progress","Resolved"].map(s => `
-                      <button class="btn-ghost" data-action="admin-set-ticket-status" data-id="${t.id}" data-status="${s}"
-                        style="font-size:11px;padding:4px 9px;border-radius:999px;border:1px solid ${t.status===s?STATUS_COLOR[s]:"var(--border)"};color:${t.status===s?STATUS_COLOR[s]:"var(--gray)"};background:${t.status===s?STATUS_COLOR[s]+"18":"transparent"};">${s}</button>
-                    `).join("")}
-                  </div>
-                </div>
-              `).join("")}
-            </div>
-          `}
-        </div>
-
-        <div style="display:flex;justify-content:flex-end;margin-top:16px;">
-          <button class="btn-secondary" data-action="close-admin">Close</button>
-        </div>
+        `).join("")}
       </div>
-    </div>`;
+    `}
+  `;
+
+  const codePanel = `
+    <h2 class="wd-h" style="font-size:19px;margin:0 0 14px;">Code updates</h2>
+    <div class="wd-card" style="padding:20px;max-width:520px;">
+      <p style="font-size:13.5px;color:var(--gray);margin:0 0 14px;line-height:1.6;">Open a Claude conversation and describe what you want updated — Claude edits the code and pushes it to the repo, then this page redeploys automatically within a minute or two.</p>
+      <a href="https://claude.ai/new" target="_blank" rel="noopener" class="btn-primary" style="display:inline-flex;align-items:center;gap:6px;text-decoration:none;">Open Claude to make a change</a>
+    </div>
+  `;
+
+  return `
+    <div class="admin-hub-wrap">
+      <div class="admin-sidebar">
+        <p style="font-size:11px;letter-spacing:1px;font-weight:700;color:var(--gray);padding:0 10px;margin:0 0 6px;">ADMIN HUB</p>
+        ${navItem("tickets", "Tickets", openCount > 0 ? openCount : null)}
+        ${navItem("code", "Code updates", null)}
+        <div style="border-top:1px solid var(--border);margin:10px 0;"></div>
+        <button class="folder-item" data-action="exit-admin-hub">${ICONS.back} Back to StudyDay</button>
+      </div>
+      <div class="admin-main">
+        ${section === "code" ? codePanel : ticketsPanel}
+      </div>
+    </div>
+  `;
 }
 
 function renderFeedbackModal(){
@@ -576,6 +597,7 @@ let state = {
   feedbackModalOpen: false,
   feedback: loadFeedback(),
   adminTicketFilter: "all",
+  adminSection: "tickets",
   importModalOpen: false,
   importError: null,
   extractedText: "",
@@ -670,6 +692,7 @@ function renderView(){
     case "flashcards": return viewFlashcards();
     case "learn": return viewLearn();
     case "match": return viewMatch();
+    case "admin-hub": return viewAdminHub();
     default: return "";
   }
 }
@@ -1085,11 +1108,16 @@ function bindEvents(){
 async function handleAction(action, el){
   switch(action){
     case "open-admin":
+      if (state.adminUnlocked) { state.view = "admin-hub"; render(); return; }
       state.adminModalOpen = true; state.adminError = false; render();
       setTimeout(() => { const inp=document.getElementById("admin-passcode-input"); if(inp) inp.focus(); }, 0);
       return;
     case "close-admin": case "close-admin-bg":
-      state.adminModalOpen = false; state.adminUnlocked = false; state.adminError = false; render(); return;
+      state.adminModalOpen = false; state.adminError = false; render(); return;
+    case "exit-admin-hub":
+      state.view = "dashboard"; render(); return;
+    case "admin-select-section":
+      state.adminSection = el.getAttribute("data-section"); render(); return;
     case "open-feedback":
       state.feedbackModalOpen = true; render();
       setTimeout(() => { const t=document.getElementById("feedback-input"); if(t) t.focus(); }, 0);
@@ -1240,6 +1268,8 @@ async function handleAction(action, el){
       const hash = await sha256Hex(val);
       if (hash === ADMIN_PASSCODE_HASH) {
         state.adminUnlocked = true; state.adminError = false;
+        state.adminModalOpen = false;
+        state.view = "admin-hub";
       } else {
         state.adminError = true;
       }
