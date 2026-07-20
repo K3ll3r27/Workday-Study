@@ -792,10 +792,29 @@ function buildLearnQueue(cards){
 function viewLearn(){
   const s = getActiveSet();
   if (!s) { state.view="dashboard"; return viewDashboard(); }
+
   if (!state.session || state.session.mode !== "learn") {
-    state.session = { mode:"learn", queue: buildLearnQueue(s.cards), qi:0, selected:null, correct:0, total:0, missedIds:[] };
+    // No round started yet — ask which direction to quiz in first.
+    return `
+      <div style="max-width:480px;margin:60px auto;text-align:center;">
+        <button class="btn-ghost" data-action="exit-mode" style="margin-bottom:20px;">${ICONS.back} Exit</button>
+        <h2 class="wd-h" style="font-size:20px;margin:0 0 8px;">How do you want to be quizzed?</h2>
+        <p style="font-size:13.5px;color:var(--gray);margin:0 0 22px;">You can switch this again on your next round.</p>
+        <div style="display:grid;gap:12px;">
+          <button class="wd-card clickable" style="padding:18px;text-align:left;" data-action="start-learn" data-direction="defToTerm">
+            <p class="wd-h" style="font-size:15px;margin:0 0 4px;">See the definition → pick the term</p>
+            <p style="font-size:12.5px;color:var(--gray);margin:0;">The classic mode — match a definition to its term.</p>
+          </button>
+          <button class="wd-card clickable" style="padding:18px;text-align:left;" data-action="start-learn" data-direction="termToDef">
+            <p class="wd-h" style="font-size:15px;margin:0 0 4px;">See the term → pick the definition</p>
+            <p style="font-size:12.5px;color:var(--gray);margin:0;">Flip it — good for recall in the other direction.</p>
+          </button>
+        </div>
+      </div>`;
   }
+
   const ses = state.session;
+  const dir = ses.direction || "defToTerm";
   if (ses.qi >= ses.queue.length) {
     const actions = [{label:"New round", action:"restart-learn", missed:"0"}];
     if (ses.missedIds.length > 0) actions.push({label:"Review missed only", action:"restart-learn", missed:"1"});
@@ -806,11 +825,13 @@ function viewLearn(){
   const cur = ses.queue[ses.qi];
   const pct = (ses.qi / ses.queue.length) * 100;
   const wasCorrect = ses.selected === cur.card.id;
+  const prompt = dir === "termToDef" ? cur.card.term : cur.card.definition;
+  const promptLabel = dir === "termToDef" ? "WHICH DEFINITION MATCHES?" : "WHICH TERM MATCHES?";
   const feedback = ses.selected ? (
     wasCorrect
       ? `<div style="background:#E9F7F0;border:1.5px solid var(--green);border-radius:10px;padding:14px 16px;margin-top:14px;text-align:left;">
           <p style="font-weight:700;color:var(--green);font-size:14px;margin:0 0 4px;display:flex;align-items:center;gap:6px;">${ICONS.check} Good job!</p>
-          <p style="font-size:13.5px;color:var(--blueDark);margin:0;line-height:1.5;"><strong>${esc(cur.card.term)}</strong> is correct — ${esc(cur.card.definition)}</p>
+          <p style="font-size:13.5px;color:var(--blueDark);margin:0;line-height:1.5;"><strong>${esc(cur.card.term)}</strong> — ${esc(cur.card.definition)}</p>
         </div>`
       : `<div style="background:#FBEAE8;border:1.5px solid var(--red);border-radius:10px;padding:14px 16px;margin-top:14px;text-align:left;">
           <p style="font-weight:700;color:var(--red);font-size:14px;margin:0 0 4px;display:flex;align-items:center;gap:6px;">${ICONS.x} Not quite</p>
@@ -821,8 +842,8 @@ function viewLearn(){
     <div style="max-width:560px;margin:0 auto;">
       ${topBar(pct, `${ses.qi+1} / ${ses.queue.length}`, false)}
       <div class="wd-card" style="padding:28px;margin-top:20px;text-align:center;">
-        <span style="font-size:11px;letter-spacing:1.5px;font-weight:700;color:var(--orange);">WHICH TERM MATCHES?</span>
-        <p class="wd-h" style="font-size:19px;margin:14px 0 0;line-height:1.5;">${esc(cur.card.definition)}</p>
+        <span style="font-size:11px;letter-spacing:1.5px;font-weight:700;color:var(--orange);">${promptLabel}</span>
+        <p class="wd-h" style="font-size:19px;margin:14px 0 0;line-height:1.5;">${esc(prompt)}</p>
       </div>
       <div style="display:grid;gap:10px;margin-top:18px;">
         ${cur.options.map(opt => {
@@ -834,7 +855,8 @@ function viewLearn(){
             if (isAnswer) { style = "background:#E9F7F0;border-color:var(--green);color:var(--green);"; icon = ICONS.check; }
             else if (isSel) { style = "background:#FBEAE8;border-color:var(--red);color:var(--red);"; icon = ICONS.x; }
           }
-          return `<button class="option-btn" style="${style}" data-action="learn-choose" data-opt-id="${opt.id}" ${ses.selected?'disabled':''}>${esc(opt.term)} ${icon}</button>`;
+          const optText = dir === "termToDef" ? opt.definition : opt.term;
+          return `<button class="option-btn" style="${style}" data-action="learn-choose" data-opt-id="${opt.id}" ${ses.selected?'disabled':''}>${esc(optText)} ${icon}</button>`;
         }).join("")}
       </div>
       ${feedback}
@@ -1202,6 +1224,12 @@ async function handleAction(action, el){
     }
 
     // learn
+    case "start-learn": {
+      const s = getActiveSet();
+      const direction = el.getAttribute("data-direction") || "defToTerm";
+      state.session = { mode:"learn", queue: buildLearnQueue(s.cards), qi:0, selected:null, correct:0, total:0, missedIds:[], direction };
+      render(); return;
+    }
     case "learn-choose": {
       const ses = state.session;
       if (ses.selected) return; // already answered this question — ignore extra clicks
@@ -1228,12 +1256,13 @@ async function handleAction(action, el){
       const s = getActiveSet();
       const wantMissedOnly = el.getAttribute("data-missed") === "1";
       const prevMissedIds = (state.session && state.session.missedIds) || [];
+      const prevDirection = (state.session && state.session.direction) || "defToTerm";
       let pool = s.cards;
       if (wantMissedOnly) {
         const missedCards = s.cards.filter(c => prevMissedIds.includes(c.id));
         pool = missedCards.length ? missedCards : s.cards;
       }
-      state.session = { mode:"learn", queue: buildLearnQueue(pool), qi:0, selected:null, correct:0, total:0, missedIds:[] };
+      state.session = { mode:"learn", queue: buildLearnQueue(pool), qi:0, selected:null, correct:0, total:0, missedIds:[], direction: prevDirection };
       render(); break;
     }
 
