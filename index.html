@@ -35,6 +35,7 @@
   .grid-sets{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:16px;}
   .grid-modes{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;}
   .hero{position:relative;padding:36px 32px;border-radius:18px;background:var(--blueDark);overflow:hidden;margin-bottom:32px;}
+  @media (max-width:640px){ .hero-arc{display:none;} }
   .icon-box{width:34px;height:34px;border-radius:9px;background:#EEF4FC;display:flex;align-items:center;justify-content:center;}
   .progress-track{flex:1;height:8px;background:var(--border);border-radius:99px;overflow:hidden;}
   .progress-fill{height:100%;background:linear-gradient(90deg,var(--orange),var(--amber));transition:width .3s ease;}
@@ -638,7 +639,7 @@ function viewDashboard(){
 
   return `
     <section class="hero">
-      <svg width="260" height="260" viewBox="0 0 40 40" style="position:absolute;right:-40px;top:-60px;opacity:.9;">
+      <svg class="hero-arc" width="200" height="200" viewBox="0 0 40 40" style="position:absolute;right:28px;top:50%;transform:translateY(-50%);opacity:.9;">
         <defs><linearGradient id="heroarc" x1="0%" y1="0%" x2="100%" y2="0%">
           <stop offset="0%" stop-color="#FDBA58"/><stop offset="100%" stop-color="#F4990B"/>
         </linearGradient></defs>
