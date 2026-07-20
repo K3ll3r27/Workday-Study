@@ -353,7 +353,16 @@ function renderAdminModal(){
     </div>`;
 }
 
+const ADMIN_EMPLOYEE_NAME = "logan keller"; // lowercase, trimmed — matched against the checked-in name
+
+function isAdminUser(){
+  if (!state.currentEmployeeId) return false;
+  const emp = loadEmployees().find(e => e.id === state.currentEmployeeId);
+  return !!emp && emp.name.trim().toLowerCase() === ADMIN_EMPLOYEE_NAME;
+}
+
 function viewAdminHub(){
+  if (!isAdminUser()) { state.view = "dashboard"; return viewDashboard(); }
   const statusFilters = ["all", "Open", "In Progress", "Resolved"];
   const tickets = state.feedback
     .slice()
@@ -881,7 +890,7 @@ function render(){
           <button class="btn-ghost" data-action="open-leaderboard" title="Leaderboard" style="padding:4px;">${ICONS.trophy}</button>
           <span style="color:var(--gray);font-size:13px;">Saved on this device only</span>
           <button class="btn-ghost" data-action="open-feedback" title="Notes for future updates" style="padding:4px;">${ICONS.comment}</button>
-          <button class="btn-ghost" data-action="open-admin" title="Admin" style="padding:4px;">${ICONS.lock}</button>
+          ${isAdminUser() ? `<button class="btn-ghost" data-action="open-admin" title="Admin" style="padding:4px;">${ICONS.lock}</button>` : ""}
         </div>
       </div>
     </header>
@@ -1331,6 +1340,7 @@ function bindEvents(){
 async function handleAction(action, el){
   switch(action){
     case "open-admin":
+      if (!isAdminUser()) return;
       if (state.adminUnlocked) { state.view = "admin-hub"; render(); return; }
       state.adminModalOpen = true; state.adminError = false; render();
       setTimeout(() => { const inp=document.getElementById("admin-passcode-input"); if(inp) inp.focus(); }, 0);
@@ -1489,7 +1499,7 @@ async function handleAction(action, el){
       const inp = document.getElementById("admin-passcode-input");
       const val = inp ? inp.value : "";
       const hash = await sha256Hex(val);
-      if (hash === ADMIN_PASSCODE_HASH) {
+      if (hash === ADMIN_PASSCODE_HASH && isAdminUser()) {
         state.adminUnlocked = true; state.adminError = false;
         state.adminModalOpen = false;
         state.view = "admin-hub";
