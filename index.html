@@ -333,19 +333,41 @@ function renderImportModal(){
         </div>
 
         <div style="border:1px solid var(--border);border-radius:10px;padding:14px;">
-          <p style="font-size:12.5px;font-weight:700;color:var(--blueDark);margin:0 0 8px;">STEP 3 — Paste the flashcards back here</p>
-          <input class="wd-input" id="import-set-name" placeholder="Set name (e.g. Chapter 3 — Payroll)" style="margin-bottom:10px;">
-          <textarea id="import-json" class="wd-input" rows="5" placeholder='Paste Claude&#39;s JSON response here, e.g. [{"term":"...","definition":"..."}]' style="resize:vertical;font-family:monospace;font-size:12.5px;margin-bottom:8px;"></textarea>
-          <label class="btn-ghost" style="cursor:pointer;font-size:13px;display:inline-flex;align-items:center;gap:6px;">
-            ${ICONS.upload} Or upload a .json file
-            <input type="file" id="import-file-input" accept=".json" style="display:none;">
-          </label>
-          ${state.importError ? `<p style="color:var(--red);font-size:12.5px;margin:10px 0 0;">${esc(state.importError)}</p>` : ""}
+          ${state.importPreviewCards ? `
+            <p style="font-size:12.5px;font-weight:700;color:var(--blueDark);margin:0 0 8px;">STEP 3 — Review before adding (${state.importPreviewCards.length} card${state.importPreviewCards.length===1?"":"s"})</p>
+            <p style="font-size:12.5px;color:var(--gray);margin:0 0 10px;">Remove anything that looks wrong before it's saved.</p>
+            <input class="wd-input" id="import-set-name" placeholder="Set name (e.g. Chapter 3 — Payroll)" style="margin-bottom:10px;">
+            <div style="max-height:260px;overflow-y:auto;display:grid;gap:8px;">
+              ${state.importPreviewCards.map(c => `
+                <div style="border:1px solid var(--border);border-radius:8px;padding:10px;display:flex;justify-content:space-between;gap:10px;align-items:flex-start;">
+                  <div>
+                    <p style="font-size:13px;font-weight:600;margin:0 0 3px;color:var(--blueDark);">${esc(c.term)}</p>
+                    <p style="font-size:12.5px;margin:0;color:var(--gray);line-height:1.4;">${esc(c.definition)}</p>
+                  </div>
+                  <button class="btn-ghost" data-action="remove-preview-card" data-id="${c.id}" title="Remove this card">${ICONS.trash}</button>
+                </div>
+              `).join("")}
+            </div>
+            ${state.importPreviewCards.length === 0 ? `<p style="font-size:12.5px;color:var(--red);margin-top:10px;">All cards removed — go back and try different content.</p>` : ""}
+            <button class="btn-ghost" data-action="back-to-json" style="margin-top:10px;font-size:13px;">${ICONS.back} Back to edit JSON</button>
+          ` : `
+            <p style="font-size:12.5px;font-weight:700;color:var(--blueDark);margin:0 0 8px;">STEP 3 — Paste the flashcards back here</p>
+            <input class="wd-input" id="import-set-name" placeholder="Set name (e.g. Chapter 3 — Payroll)" value="${esc(state.importNameAtPreview)}" style="margin-bottom:10px;">
+            <textarea id="import-json" class="wd-input" rows="5" placeholder='Paste the JSON response here, e.g. [{"term":"...","definition":"..."}]' style="resize:vertical;font-family:monospace;font-size:12.5px;margin-bottom:8px;">${esc(state.importRawJson)}</textarea>
+            <label class="btn-ghost" style="cursor:pointer;font-size:13px;display:inline-flex;align-items:center;gap:6px;">
+              ${ICONS.upload} Or upload a .json file
+              <input type="file" id="import-file-input" accept=".json" style="display:none;">
+            </label>
+            ${state.importError ? `<p style="color:var(--red);font-size:12.5px;margin:10px 0 0;">${esc(state.importError)}</p>` : ""}
+          `}
         </div>
 
         <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:18px;">
           <button class="btn-secondary" data-action="close-import">Cancel</button>
-          <button class="btn-primary" data-action="submit-import">Create set</button>
+          ${state.importPreviewCards
+            ? `<button class="btn-primary" data-action="submit-import" ${state.importPreviewCards.length===0?"disabled":""}>Add ${state.importPreviewCards.length} card${state.importPreviewCards.length===1?"":"s"}</button>`
+            : `<button class="btn-primary" data-action="preview-import">Review cards</button>`
+          }
         </div>
       </div>
     </div>`;
@@ -395,6 +417,10 @@ let state = {
   importError: null,
   extractedText: "",
   extractStatus: null,
+  importPreviewCards: null,
+  importRawJson: "",
+  importNameAtPreview: "",
+  importParsedName: "",
 };
 
 function showToast(msg){
@@ -847,10 +873,12 @@ async function handleAction(action, el){
     case "open-import":
       state.importModalOpen = true; state.importError = null;
       state.extractedText = ""; state.extractStatus = null;
+      state.importPreviewCards = null; state.importRawJson = ""; state.importNameAtPreview = ""; state.importParsedName = "";
       render(); return;
     case "close-import": case "close-import-bg":
       state.importModalOpen = false; state.importError = null;
       state.extractedText = ""; state.extractStatus = null;
+      state.importPreviewCards = null; state.importRawJson = ""; state.importNameAtPreview = ""; state.importParsedName = "";
       render(); return;
     case "copy-extracted-text": {
       try {
@@ -870,23 +898,45 @@ async function handleAction(action, el){
       }
       return;
     }
-    case "submit-import": {
+    case "preview-import": {
       const nameInput = document.getElementById("import-set-name");
       const jsonInput = document.getElementById("import-json");
-      const typedName = nameInput ? nameInput.value.trim() : "";
+      state.importNameAtPreview = nameInput ? nameInput.value.trim() : "";
       const raw = jsonInput ? jsonInput.value.trim() : "";
-      if (!raw) { state.importError = "Paste in the JSON Claude gave you first."; render(); return; }
+      state.importRawJson = raw;
+      if (!raw) { state.importError = "Paste in the JSON you got back first."; render(); return; }
       const result = parseImportedCards(raw);
       if (result.error) { state.importError = result.error; render(); return; }
-      const finalName = typedName || result.name || "Imported set";
+      state.importError = null;
+      state.importParsedName = result.name || "";
+      state.importPreviewCards = result.cards.map(c => ({ id: uid(), term: c.term, definition: c.definition }));
+      render();
+      return;
+    }
+    case "remove-preview-card": {
+      const id = el.getAttribute("data-id");
+      state.importPreviewCards = state.importPreviewCards.filter(c => c.id !== id);
+      render();
+      return;
+    }
+    case "back-to-json":
+      state.importPreviewCards = null;
+      render();
+      return;
+    case "submit-import": {
+      if (!state.importPreviewCards || state.importPreviewCards.length === 0) return;
+      const nameInput = document.getElementById("import-set-name");
+      const typedName = nameInput ? nameInput.value.trim() : "";
+      const finalName = typedName || state.importParsedName || "Imported set";
       const newSet = {
         id: uid(),
         name: finalName,
-        description: result.description || "",
-        cards: result.cards.map(c => ({ id: uid(), term: c.term, definition: c.definition })),
+        description: "",
+        cards: state.importPreviewCards.map(c => ({ id: uid(), term: c.term, definition: c.definition })),
       };
       persistActiveSetEdit(newSet);
       state.importModalOpen = false; state.importError = null;
+      state.importPreviewCards = null; state.importRawJson = ""; state.importNameAtPreview = ""; state.importParsedName = "";
       state.view = "dashboard";
       render();
       return;
