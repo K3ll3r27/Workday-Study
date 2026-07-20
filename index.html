@@ -1324,6 +1324,21 @@ document.getElementById("root").addEventListener("click", (e) => {
 /* ---------------- Site-wide login gate ---------------- */
 const LOGIN_HASH = "dd015a0fdd97aa8bf83e923b9d06bbf377bd308becbca039fce9d31bb552cd5d";
 const LOGIN_KEY = "wd_site_unlocked_v1";
+const ACTIVITY_KEY = "wd_last_activity_v1";
+const INACTIVITY_LIMIT_MS = 5 * 60 * 1000; // 5 minutes
+
+function recordActivity(){
+  try { localStorage.setItem(ACTIVITY_KEY, String(Date.now())); } catch(e) {}
+}
+function getLastActivity(){
+  try {
+    const raw = localStorage.getItem(ACTIVITY_KEY);
+    return raw ? parseInt(raw, 10) : 0;
+  } catch(e) { return 0; }
+}
+function clearSession(){
+  try { localStorage.removeItem(LOGIN_KEY); localStorage.removeItem(ACTIVITY_KEY); } catch(e) {}
+}
 
 function startApp(){
   render();
@@ -1336,6 +1351,40 @@ function startApp(){
     splash.classList.add("fade-out");
     setTimeout(() => splash.remove(), 450);
   }, 600);
+  setupActivityTracking();
+}
+
+function setupActivityTracking(){
+  recordActivity();
+  // Throttle writes — only record on real interaction, not every mousemove tick.
+  let lastWrite = Date.now();
+  ["click", "keydown", "scroll", "touchstart"].forEach(evt => {
+    document.addEventListener(evt, () => {
+      const now = Date.now();
+      if (now - lastWrite > 3000) { lastWrite = now; recordActivity(); }
+    }, { passive: true });
+  });
+  // Periodically check whether the inactivity window has been exceeded —
+  // catches both "sat idle" and "closed the tab and came back later".
+  setInterval(() => {
+    if (Date.now() - getLastActivity() > INACTIVITY_LIMIT_MS) {
+      forceLogout("Your session timed out after 5 minutes — please log in again.");
+    }
+  }, 15000);
+}
+
+function forceLogout(message){
+  clearSession();
+  const root = document.getElementById("root");
+  if (root) root.innerHTML = "";
+  const gate = document.getElementById("login-gate");
+  if (gate) gate.style.display = "flex";
+  const errorEl = document.getElementById("login-error");
+  if (errorEl && message) errorEl.textContent = message;
+  const userInput = document.getElementById("login-username");
+  const passInput = document.getElementById("login-password");
+  if (userInput) userInput.value = "";
+  if (passInput) passInput.value = "";
 }
 
 function initLoginGate(){
@@ -1345,10 +1394,15 @@ function initLoginGate(){
 
   let unlocked = false;
   try { unlocked = localStorage.getItem(LOGIN_KEY) === "1"; } catch(e) {}
-  if (unlocked) {
+  const withinWindow = unlocked && (Date.now() - getLastActivity() < INACTIVITY_LIMIT_MS);
+
+  if (withinWindow) {
     gate.style.display = "none";
     startApp();
     return;
+  }
+  if (unlocked && !withinWindow) {
+    clearSession(); // stale session — require login again
   }
 
   const userInput = document.getElementById("login-username");
@@ -1363,6 +1417,7 @@ function initLoginGate(){
     const hash = await sha256Hex(u + "|" + p);
     if (hash === LOGIN_HASH) {
       try { localStorage.setItem(LOGIN_KEY, "1"); } catch(e) {}
+      recordActivity();
       gate.style.display = "none";
       startApp();
     } else {
