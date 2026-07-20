@@ -1153,27 +1153,29 @@ function viewDashboard(){
   return `
     <div class="dashboard-layout">
       ${certificatesWidget}
-      <section class="hero" style="flex:1;">
-        <div class="hero-arc" style="position:absolute;right:160px;top:50%;transform:translateY(-58%);display:flex;flex-direction:column;align-items:center;gap:0px;">
-          <svg width="180" height="180" viewBox="0 0 40 40" style="opacity:.95;">
-            <defs><linearGradient id="heroarc" x1="0%" y1="0%" x2="100%" y2="0%">
-              <stop offset="0%" stop-color="#FDBA58"/><stop offset="100%" stop-color="#F4990B"/>
-            </linearGradient></defs>
-            <path d="M 2 25 A 18 18 0 0 1 38 25" fill="none" stroke="url(#heroarc)" stroke-width="3" stroke-linecap="round"/>
-          </svg>
-          <span class="wd-h" style="font-size:32px;font-weight:800;margin-top:-42px;background:linear-gradient(135deg,#FDBA58,#F4990B);-webkit-background-clip:text;background-clip:text;color:transparent;">StudyDay</span>
-        </div>
-        <h1 class="wd-h" style="color:#fff;font-size:28px;margin:0 0 8px;max-width:480px;">Get ready for your Workday exams</h1>
-        <p style="color:#B9C6D9;font-size:14px;max-width:440px;margin:0 0 20px;">Your sets are saved right in this browser on this device.</p>
-        <div style="display:flex;gap:10px;flex-wrap:wrap;">
-          <button class="btn-primary" data-action="new-set" style="display:inline-flex;align-items:center;gap:6px;">${ICONS.plus} New study set</button>
-          <button class="btn-secondary" data-action="open-import" style="display:inline-flex;align-items:center;gap:6px;background:transparent;color:white;border-color:rgba(255,255,255,.4);">${ICONS.upload} Import from a document</button>
-        </div>
-      </section>
+      <div class="dashboard-main">
+        <section class="hero">
+          <div class="hero-arc" style="position:absolute;right:160px;top:50%;transform:translateY(-58%);display:flex;flex-direction:column;align-items:center;gap:0px;">
+            <svg width="180" height="180" viewBox="0 0 40 40" style="opacity:.95;">
+              <defs><linearGradient id="heroarc" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" stop-color="#FDBA58"/><stop offset="100%" stop-color="#F4990B"/>
+              </linearGradient></defs>
+              <path d="M 2 25 A 18 18 0 0 1 38 25" fill="none" stroke="url(#heroarc)" stroke-width="3" stroke-linecap="round"/>
+            </svg>
+            <span class="wd-h" style="font-size:32px;font-weight:800;margin-top:-42px;background:linear-gradient(135deg,#FDBA58,#F4990B);-webkit-background-clip:text;background-clip:text;color:transparent;">StudyDay</span>
+          </div>
+          <h1 class="wd-h" style="color:#fff;font-size:28px;margin:0 0 8px;max-width:480px;">Get ready for your Workday exams</h1>
+          <p style="color:#B9C6D9;font-size:14px;max-width:440px;margin:0 0 20px;">Your sets are saved right in this browser on this device.</p>
+          <div style="display:flex;gap:10px;flex-wrap:wrap;">
+            <button class="btn-primary" data-action="new-set" style="display:inline-flex;align-items:center;gap:6px;">${ICONS.plus} New study set</button>
+            <button class="btn-secondary" data-action="open-import" style="display:inline-flex;align-items:center;gap:6px;background:transparent;color:white;border-color:rgba(255,255,255,.4);">${ICONS.upload} Import from a document</button>
+          </div>
+        </section>
+        ${breadcrumb}
+        ${cardsHtml}
+      </div>
       ${leaderboardWidget}
     </div>
-    ${breadcrumb}
-    ${cardsHtml}
     ${confirmHtml}
   `;
 }
