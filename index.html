@@ -920,6 +920,7 @@ let state = {
   certModalOpen: false,
   certPhotoDataUrl: null,
   certError: null,
+  certCarouselIndex: 0,
   importModalOpen: false,
   importError: null,
   extractedText: "",
@@ -1119,24 +1120,35 @@ function viewDashboard(){
       </div>
     </aside>`;
 
-  const certificates = loadCertificates().slice().sort((a,b) => b.submittedAt - a.submittedAt);
-  const certGallery = certificates.length > 0 ? `
-    <section style="margin:28px 0;">
-      <h2 class="wd-h" style="font-size:18px;margin:0 0 14px;display:flex;align-items:center;gap:8px;">${ICONS.trophy} Recent Certificates</h2>
-      <div style="display:flex;gap:14px;overflow-x:auto;padding-bottom:8px;">
-        ${certificates.map(c => `
-          <div class="wd-card" style="min-width:170px;max-width:170px;flex-shrink:0;overflow:hidden;">
-            <img src="${c.photo}" style="width:100%;height:130px;object-fit:cover;display:block;">
-            <div style="padding:10px 12px;">
-              <p style="font-size:13px;font-weight:600;color:var(--blueDark);margin:0 0 3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(c.employeeName)}</p>
-              <p style="font-size:11px;color:var(--orange);font-weight:600;margin:0 0 2px;">${esc(c.certification)}</p>
-              <p style="font-size:10.5px;color:var(--gray);margin:0;">${new Date(c.dateEarned).toLocaleDateString()}</p>
+  const perPersonCerts = (() => {
+    const byEmployee = {};
+    loadCertificates().forEach(c => {
+      if (!byEmployee[c.employeeId] || c.submittedAt > byEmployee[c.employeeId].submittedAt) byEmployee[c.employeeId] = c;
+    });
+    return Object.values(byEmployee).sort((a,b) => b.submittedAt - a.submittedAt);
+  })();
+  const activeCertIdx = perPersonCerts.length ? (state.certCarouselIndex % perPersonCerts.length) : 0;
+  const activeCert = perPersonCerts[activeCertIdx];
+
+  const certificatesWidget = `
+    <aside class="leaderboard-widget">
+      <div class="wd-card" style="padding:18px;">
+        <h3 class="wd-h" style="font-size:15px;margin:0 0 14px;display:flex;align-items:center;gap:7px;color:var(--orange);">${ICONS.trophy} Recent Certificates</h3>
+        ${!activeCert ? `
+          <p style="font-size:12.5px;color:var(--gray);margin:0;">No one's posted a certificate yet — be the first!</p>
+        ` : `
+          <img src="${activeCert.photo}" style="width:100%;height:170px;object-fit:cover;border-radius:10px;display:block;margin-bottom:10px;">
+          <p style="font-size:14px;font-weight:600;color:var(--blueDark);margin:0 0 2px;">${esc(activeCert.employeeName)}</p>
+          <p style="font-size:12px;color:var(--orange);font-weight:600;margin:0 0 2px;">${esc(activeCert.certification)}</p>
+          <p style="font-size:11.5px;color:var(--gray);margin:0 0 ${perPersonCerts.length>1?"10px":"0"};">${new Date(activeCert.dateEarned).toLocaleDateString()}</p>
+          ${perPersonCerts.length > 1 ? `
+            <div style="display:flex;gap:5px;justify-content:center;">
+              ${perPersonCerts.map((c,i) => `<button data-action="cert-carousel-select" data-index="${i}" style="width:${i===activeCertIdx?"18px":"6px"};height:6px;border-radius:999px;border:none;background:${i===activeCertIdx?"var(--orange)":"var(--border)"};cursor:pointer;transition:width .2s ease;padding:0;"></button>`).join("")}
             </div>
-          </div>
-        `).join("")}
+          ` : ""}
+        `}
       </div>
-    </section>
-  ` : "";
+    </aside>`;
 
   return `
     <div class="dashboard-layout">
@@ -1159,9 +1171,13 @@ function viewDashboard(){
       </section>
       ${leaderboardWidget}
     </div>
-    ${certGallery}
-    ${breadcrumb}
-    ${cardsHtml}
+    <div class="dashboard-layout" style="margin-top:20px;">
+      ${certificatesWidget}
+      <div class="dashboard-main">
+        ${breadcrumb}
+        ${cardsHtml}
+      </div>
+    </div>
     ${confirmHtml}
   `;
 }
@@ -1578,6 +1594,10 @@ async function handleAction(action, el){
       render();
       return;
     }
+    case "cert-carousel-select":
+      state.certCarouselIndex = parseInt(el.getAttribute("data-index"), 10) || 0;
+      render();
+      return;
     case "open-sidebar":
       state.sidebarOpen = true; render(); return;
     case "open-move-folder":
@@ -2007,6 +2027,14 @@ function startApp(){
     setTimeout(() => splash.remove(), 450);
   }, 600);
   setupActivityTracking();
+  setInterval(() => {
+    if (state.view !== "dashboard") return;
+    const uniqueEmployeeIds = new Set(loadCertificates().map(c => c.employeeId));
+    if (uniqueEmployeeIds.size > 1) {
+      state.certCarouselIndex = state.certCarouselIndex + 1;
+      render();
+    }
+  }, 4500);
 }
 
 function setupActivityTracking(){
