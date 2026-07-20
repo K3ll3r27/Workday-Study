@@ -310,6 +310,34 @@ function renderFeedbackModal(){
     </div>`;
 }
 
+function renderMoveFolderModal(){
+  if (!state.moveFolderSetId) return "";
+  const s = state.sets.find(x => x.id === state.moveFolderSetId);
+  if (!s) return "";
+  return `
+    <div class="modal-overlay" data-action="close-move-folder-bg">
+      <div class="modal-box" data-stop="1">
+        <h3 class="wd-h" style="font-size:16px;margin:0 0 4px;display:flex;align-items:center;gap:8px;">${ICONS.folder} Move "${esc(s.name)}"</h3>
+        <p style="font-size:13px;color:var(--gray);margin:0 0 14px;">Choose a folder for this set.</p>
+        <div style="display:grid;gap:6px;">
+          <button class="folder-item ${!s.folder ? "active" : ""}" data-action="move-set-folder" data-id="${s.id}" data-folder="">
+            <span style="display:flex;align-items:center;gap:8px;">No folder</span>
+            ${!s.folder ? ICONS.check : ""}
+          </button>
+          ${FOLDERS.map(f => `
+            <button class="folder-item ${s.folder === f ? "active" : ""}" data-action="move-set-folder" data-id="${s.id}" data-folder="${esc(f)}">
+              <span style="display:flex;align-items:center;gap:8px;">${ICONS.folder} ${esc(f)}</span>
+              ${s.folder === f ? ICONS.check : ""}
+            </button>
+          `).join("")}
+        </div>
+        <div style="display:flex;justify-content:flex-end;margin-top:16px;">
+          <button class="btn-secondary" data-action="close-move-folder">Close</button>
+        </div>
+      </div>
+    </div>`;
+}
+
 function renderSidebar(){
   if (!state.sidebarOpen) return "";
   const counts = {};
@@ -473,6 +501,7 @@ let state = {
   importParsedName: "",
   sidebarOpen: false,
   activeFolder: null,
+  moveFolderSetId: null,
 };
 
 function showToast(msg){
@@ -532,6 +561,7 @@ function render(){
     ${renderAdminModal()}
     ${renderFeedbackModal()}
     ${renderImportModal()}
+    ${renderMoveFolderModal()}
     ${renderSidebar()}
     <div id="toast-slot">${state.toast ? `<div class="toast">${esc(state.toast)}</div>` : ""}</div>
   `;
@@ -583,6 +613,7 @@ function viewDashboard(){
             <div style="display:flex;justify-content:space-between;align-items:flex-start;">
               <div class="icon-box" style="color:var(--blue);">${ICONS.layers}</div>
               <div style="display:flex;gap:4px;" data-stop="1">
+                <button class="btn-ghost" data-action="open-move-folder" data-id="${s.id}" title="Move to folder">${ICONS.folder}</button>
                 <button class="btn-ghost" data-action="edit-set" data-id="${s.id}" title="Edit">${ICONS.pencil}</button>
                 <button class="btn-ghost" data-action="confirm-delete" data-id="${s.id}" title="Delete">${ICONS.trash}</button>
               </div>
@@ -965,6 +996,24 @@ async function handleAction(action, el){
     }
     case "open-sidebar":
       state.sidebarOpen = true; render(); return;
+    case "open-move-folder":
+      state.moveFolderSetId = el.getAttribute("data-id"); render(); return;
+    case "close-move-folder": case "close-move-folder-bg":
+      state.moveFolderSetId = null; render(); return;
+    case "move-set-folder": {
+      const id = el.getAttribute("data-id");
+      const folder = el.getAttribute("data-folder") || null;
+      const s = state.sets.find(x => x.id === id);
+      if (s) {
+        s.folder = folder;
+        s.updatedAt = Date.now();
+        saveSets(state.sets);
+        showToast(folder ? `Moved to ${folder}.` : "Removed from folder.");
+      }
+      state.moveFolderSetId = null;
+      render();
+      return;
+    }
     case "close-sidebar":
       state.sidebarOpen = false; render(); return;
     case "select-folder": {
