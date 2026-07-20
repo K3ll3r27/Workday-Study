@@ -553,17 +553,6 @@ function summaryScreen(title, stats, actions, hideReplay){
 function bindEvents(){
   const root = document.getElementById("root");
 
-  root.querySelectorAll("[data-stop]").forEach(el => {
-    el.addEventListener("click", e => e.stopPropagation());
-  });
-
-  root.addEventListener("click", (e) => {
-    const el = e.target.closest("[data-action]");
-    if (!el) return;
-    const action = el.getAttribute("data-action");
-    handleAction(action, el, e);
-  }, { once:false });
-
   // editor live input binding
   const nameInput = document.getElementById("set-name");
   const descInput = document.getElementById("set-desc");
@@ -607,15 +596,21 @@ async function handleAction(action, el){
       state.view = "dashboard"; state.session = null; render(); break;
     case "new-set":
       state.editorDraft = { id: uid(), name:"", description:"", cards:[{id:uid(),term:"",definition:""}], _isNew:true };
+      state.editorReturnView = "dashboard";
       state.view = "editor"; render(); break;
     case "edit-set": {
       const id = el.getAttribute("data-id");
       const s = state.sets.find(x=>x.id===id);
-      if (s) { state.editorDraft = JSON.parse(JSON.stringify(s)); state.editorDraft._isNew=false; state.view="editor"; render(); }
+      if (s) {
+        state.editorDraft = JSON.parse(JSON.stringify(s)); state.editorDraft._isNew=false;
+        state.editorReturnView = (state.view === "mode-select") ? "mode-select" : "dashboard";
+        state.activeSetId = id;
+        state.view="editor"; render();
+      }
       break;
     }
     case "cancel-editor":
-      state.view = state.activeSetId ? "mode-select" : "dashboard"; render(); break;
+      state.view = state.editorReturnView || "dashboard"; render(); break;
     case "add-card":
       state.editorDraft.cards.push({id:uid(),term:"",definition:""}); render(); break;
     case "remove-card": {
@@ -655,12 +650,14 @@ async function handleAction(action, el){
     case "shuffle-flash":
       state.session.order = shuffle(state.session.order); render(); break;
     case "flash-next": {
+      if (state.session._advancing) return; // already moving to the next card
+      state.session._advancing = true;
       const mark = el.getAttribute("data-mark");
       const s = getActiveSet();
       const card = s.cards[state.session.order[state.session.i]];
       state.session.known[card.id] = mark;
       state.session.flipped = false;
-      setTimeout(() => { state.session.i++; render(); }, 120);
+      setTimeout(() => { state.session.i++; state.session._advancing = false; render(); }, 120);
       return;
     }
     case "restart-flashcards": {
@@ -677,8 +674,9 @@ async function handleAction(action, el){
 
     // learn
     case "learn-choose": {
-      const optId = el.getAttribute("data-opt-id");
       const ses = state.session;
+      if (ses.selected) return; // already answered this question — ignore extra clicks
+      const optId = el.getAttribute("data-opt-id");
       const cur = ses.queue[ses.qi];
       ses.selected = optId;
       ses.total++;
@@ -722,8 +720,18 @@ async function handleAction(action, el){
 }
 
 /* ---------------- Init ---------------- */
+document.getElementById("root").addEventListener("click", (e) => {
+  const stopEl = e.target.closest("[data-stop]");
+  const actionEl = e.target.closest("[data-action]");
+  // If the click is inside a "stop" region (e.g. a modal box, or the edit/delete
+  // buttons on a set card) but the nearest data-action is OUTSIDE that region
+  // (e.g. the overlay behind the modal, or the card behind the buttons),
+  // don't fire that outer action — this is what data-stop is for.
+  if (stopEl && (!actionEl || !stopEl.contains(actionEl))) return;
+  if (!actionEl) return;
+  handleAction(actionEl.getAttribute("data-action"), actionEl);
+});
 render();
 </script>
 </body>
 </html>
-<!-- redeploy trigger Mon Jul 20 15:41:43 UTC 2026 -->
