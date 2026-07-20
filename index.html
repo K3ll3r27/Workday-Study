@@ -676,16 +676,7 @@ function renderFeedbackModal(){
 
 function renderProfileMenu(){
   if (!state.profileMenuOpen) return "";
-  const emp = state.currentEmployeeId ? loadEmployees().find(e => e.id === state.currentEmployeeId) : null;
-  if (!emp) return "";
-  return `
-    <div class="modal-overlay" data-action="close-profile-menu" style="background:transparent;"></div>
-    <div data-stop="1" style="position:fixed;top:58px;right:20px;background:#fff;border:1px solid var(--border);border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.18);min-width:210px;z-index:81;overflow:hidden;">
-      <button class="folder-item" data-action="open-cert-modal">${ICONS.upload} Add certificate photo</button>
-      <button class="folder-item" data-action="profile-my-progress">${ICONS.trophy} My progress</button>
-      <div style="border-top:1px solid var(--border);"></div>
-      <button class="folder-item" data-action="switch-employee">${ICONS.back} Switch profile</button>
-    </div>`;
+  return `<div class="modal-overlay" data-action="close-profile-menu" style="background:transparent;"></div>`;
 }
 
 function renderCertModal(){
@@ -970,7 +961,19 @@ function render(){
         <div style="display:flex;align-items:center;gap:14px;">
           ${(() => {
             const emp = state.currentEmployeeId ? loadEmployees().find(e=>e.id===state.currentEmployeeId) : null;
-            return emp ? `<button class="btn-ghost" data-action="toggle-profile-menu" style="font-size:13px;display:flex;align-items:center;gap:5px;">${esc(emp.name)} <span style="font-size:9px;">▾</span></button>` : "";
+            if (!emp) return "";
+            return `
+              <div style="position:relative;">
+                <button class="btn-ghost" data-action="toggle-profile-menu" style="font-size:13px;display:flex;align-items:center;gap:5px;">${esc(emp.name)} <span style="font-size:9px;">▾</span></button>
+                ${state.profileMenuOpen ? `
+                  <div data-stop="1" style="position:absolute;top:calc(100% + 6px);right:0;background:#fff;border:1px solid var(--border);border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.18);min-width:210px;z-index:81;overflow:hidden;">
+                    <button class="folder-item" data-action="open-cert-modal">${ICONS.upload} Add certificate photo</button>
+                    <button class="folder-item" data-action="profile-my-progress">${ICONS.trophy} My progress</button>
+                    <div style="border-top:1px solid var(--border);"></div>
+                    <button class="folder-item" data-action="switch-employee">${ICONS.back} Switch profile</button>
+                  </div>
+                ` : ""}
+              </div>`;
           })()}
           <button class="btn-ghost" data-action="open-leaderboard" title="Leaderboard" style="padding:4px;">${ICONS.trophy}</button>
           <span style="color:var(--gray);font-size:13px;">Saved on this device only</span>
