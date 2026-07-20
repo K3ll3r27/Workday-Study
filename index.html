@@ -88,6 +88,14 @@
     .admin-hub-wrap{flex-direction:column;}
     .admin-sidebar{width:100%;flex-direction:row;flex-wrap:wrap;position:static;}
   }
+
+  .dashboard-layout{display:flex;gap:24px;align-items:flex-start;}
+  .dashboard-main{flex:1;min-width:0;}
+  .leaderboard-widget{width:270px;flex-shrink:0;position:sticky;top:20px;}
+  @media (max-width:820px){
+    .dashboard-layout{flex-direction:column;}
+    .leaderboard-widget{width:100%;position:static;}
+  }
 </style>
 </head>
 <body>
@@ -976,26 +984,63 @@ function viewDashboard(){
       </div>
     </div>` : "";
 
+  const employees = loadEmployees();
+  const board = employees
+    .map(e => ({ id: e.id, name: e.name, mastery: overallMasteryPct(e.id, state.sets) }))
+    .sort((a,b) => b.mastery - a.mastery);
+  const topBoard = board.slice(0, 5);
+  const myRank = board.findIndex(r => r.id === state.currentEmployeeId) + 1;
+  const rankIcon = (i) => i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : `${i+1}.`;
+
+  const leaderboardWidget = `
+    <aside class="leaderboard-widget">
+      <div class="wd-card" style="padding:18px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+          <h3 class="wd-h" style="font-size:15px;margin:0;display:flex;align-items:center;gap:7px;color:var(--orange);">${ICONS.trophy} Leaderboard</h3>
+          <button class="btn-ghost" data-action="open-leaderboard" style="font-size:12px;padding:3px 8px;">View all</button>
+        </div>
+        ${topBoard.length === 0 ? `
+          <p style="font-size:12.5px;color:var(--gray);margin:0;">No one's checked in yet — be the first!</p>
+        ` : `
+          <div style="display:grid;gap:2px;">
+            ${topBoard.map((r,i) => `
+              <div style="display:flex;align-items:center;gap:10px;padding:8px 6px;border-radius:8px;${r.id===state.currentEmployeeId?"background:#FFF6E9;":""}">
+                <span style="font-size:13px;width:22px;color:var(--gray);">${rankIcon(i)}</span>
+                <span style="flex:1;font-size:13.5px;color:var(--blueDark);font-weight:${r.id===state.currentEmployeeId?"700":"500"};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(r.name)}${r.id===state.currentEmployeeId?" (you)":""}</span>
+                <span style="font-size:12.5px;font-weight:700;color:var(--orange);">${r.mastery}%</span>
+              </div>
+            `).join("")}
+          </div>
+          ${myRank > 5 ? `<p style="font-size:12px;color:var(--gray);margin:12px 0 0;border-top:1px solid var(--border);padding-top:10px;">You're ranked #${myRank}</p>` : ""}
+        `}
+      </div>
+    </aside>`;
+
   return `
-    <section class="hero">
-      <div class="hero-arc" style="position:absolute;right:160px;top:50%;transform:translateY(-58%);display:flex;flex-direction:column;align-items:center;gap:0px;">
-        <svg width="180" height="180" viewBox="0 0 40 40" style="opacity:.95;">
-          <defs><linearGradient id="heroarc" x1="0%" y1="0%" x2="100%" y2="0%">
-            <stop offset="0%" stop-color="#FDBA58"/><stop offset="100%" stop-color="#F4990B"/>
-          </linearGradient></defs>
-          <path d="M 2 25 A 18 18 0 0 1 38 25" fill="none" stroke="url(#heroarc)" stroke-width="3" stroke-linecap="round"/>
-        </svg>
-        <span class="wd-h" style="font-size:32px;font-weight:800;margin-top:-42px;background:linear-gradient(135deg,#FDBA58,#F4990B);-webkit-background-clip:text;background-clip:text;color:transparent;">StudyDay</span>
+    <div class="dashboard-layout">
+      <div class="dashboard-main">
+        <section class="hero">
+          <div class="hero-arc" style="position:absolute;right:160px;top:50%;transform:translateY(-58%);display:flex;flex-direction:column;align-items:center;gap:0px;">
+            <svg width="180" height="180" viewBox="0 0 40 40" style="opacity:.95;">
+              <defs><linearGradient id="heroarc" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" stop-color="#FDBA58"/><stop offset="100%" stop-color="#F4990B"/>
+              </linearGradient></defs>
+              <path d="M 2 25 A 18 18 0 0 1 38 25" fill="none" stroke="url(#heroarc)" stroke-width="3" stroke-linecap="round"/>
+            </svg>
+            <span class="wd-h" style="font-size:32px;font-weight:800;margin-top:-42px;background:linear-gradient(135deg,#FDBA58,#F4990B);-webkit-background-clip:text;background-clip:text;color:transparent;">StudyDay</span>
+          </div>
+          <h1 class="wd-h" style="color:#fff;font-size:28px;margin:0 0 8px;max-width:480px;">Get ready for your Workday exams</h1>
+          <p style="color:#B9C6D9;font-size:14px;max-width:440px;margin:0 0 20px;">Your sets are saved right in this browser on this device.</p>
+          <div style="display:flex;gap:10px;flex-wrap:wrap;">
+            <button class="btn-primary" data-action="new-set" style="display:inline-flex;align-items:center;gap:6px;">${ICONS.plus} New study set</button>
+            <button class="btn-secondary" data-action="open-import" style="display:inline-flex;align-items:center;gap:6px;background:transparent;color:white;border-color:rgba(255,255,255,.4);">${ICONS.upload} Import from a document</button>
+          </div>
+        </section>
+        ${breadcrumb}
+        ${cardsHtml}
       </div>
-      <h1 class="wd-h" style="color:#fff;font-size:28px;margin:0 0 8px;max-width:480px;">Get ready for your Workday exams</h1>
-      <p style="color:#B9C6D9;font-size:14px;max-width:440px;margin:0 0 20px;">Your sets are saved right in this browser on this device.</p>
-      <div style="display:flex;gap:10px;flex-wrap:wrap;">
-        <button class="btn-primary" data-action="new-set" style="display:inline-flex;align-items:center;gap:6px;">${ICONS.plus} New study set</button>
-        <button class="btn-secondary" data-action="open-import" style="display:inline-flex;align-items:center;gap:6px;background:transparent;color:white;border-color:rgba(255,255,255,.4);">${ICONS.upload} Import from a document</button>
-      </div>
-    </section>
-    ${breadcrumb}
-    ${cardsHtml}
+      ${leaderboardWidget}
+    </div>
     ${confirmHtml}
   `;
 }
