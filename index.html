@@ -587,6 +587,8 @@ const ICONS = {
   grid:'<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>',
   chevron:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>',
   redo:'<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>',
+  test:'<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M9 12l2 2 4-4"/><path d="M8 6h8"/></svg>',
+  clock:'<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>',
   lock:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>',
   comment:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>',
   upload:'<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M17 8l-5-5-5 5"/><path d="M12 3v12"/></svg>',
@@ -1401,6 +1403,7 @@ let state = {
   pinRegAvatar: AVATAR_OPTIONS[Math.floor(Math.random() * AVATAR_OPTIONS.length)],
   avatarModalOpen: false,
   guideSlideIndex: 0,
+  testSetupError: null,
   importModalOpen: false,
   importError: null,
   extractedText: "",
@@ -1520,6 +1523,7 @@ function renderView(){
     case "flashcards": return viewFlashcards();
     case "learn": return viewLearn();
     case "match": return viewMatch();
+    case "test": return viewTest();
     case "admin-hub": return viewAdminHub();
     case "pin-gate": return viewPinGate();
     case "leaderboard": return viewLeaderboard();
@@ -1737,6 +1741,7 @@ function viewModeSelect(){
     {id:"flashcards", label:"Flashcards", desc:"Flip through terms and definitions at your own pace.", icon:ICONS.layers},
     {id:"learn", label:"Learn", desc:"Multiple-choice quiz that focuses on what you keep missing.", icon:ICONS.book},
     {id:"match", label:"Match", desc:"Race the clock to pair every term with its definition.", icon:ICONS.grid},
+    {id:"test", label:"Test", desc:"A fixed-length checkpoint test with a real score at the end.", icon:ICONS.test},
   ];
   return `
     <button class="btn-ghost" data-action="go-home" style="margin-bottom:16px;">${ICONS.back} All sets</button>
@@ -1921,6 +1926,93 @@ function buildMatchTiles(cards){
   });
   return shuffle(tiles);
 }
+function buildTestQueue(cards, count){
+  const chosen = shuffle(cards).slice(0, count);
+  return chosen.map(c => {
+    const others = shuffle(cards.filter(x => x.id !== c.id)).slice(0, 3);
+    return { card: c, options: shuffle([c, ...others]) };
+  });
+}
+
+function viewTest(){
+  const s = getActiveSet();
+  if (!s) { state.view = "dashboard"; return viewDashboard(); }
+
+  if (!state.session || state.session.mode !== "test") {
+    const maxQ = s.cards.length;
+    return `
+      <div style="max-width:440px;margin:50px auto;text-align:center;">
+        <button class="btn-ghost" data-action="exit-mode" style="margin-bottom:20px;">${ICONS.back} Exit</button>
+        <h2 class="wd-h" style="font-size:20px;margin:0 0 8px;">Set up your test</h2>
+        <p style="font-size:13.5px;color:var(--gray);margin:0 0 24px;">This set has ${maxQ} card${maxQ===1?"":"s"} available. Your score won't affect your mastery or the leaderboard — it's just for you.</p>
+        <div class="wd-card" style="padding:22px;text-align:left;">
+          <label style="font-size:13px;font-weight:600;color:var(--blueDark);display:block;margin-bottom:6px;">Number of questions</label>
+          <input class="wd-input" id="test-question-count" type="number" min="1" max="${maxQ}" value="${Math.min(10, maxQ)}" style="margin-bottom:18px;">
+          <label style="font-size:13px;font-weight:600;color:var(--blueDark);display:flex;align-items:center;gap:8px;cursor:pointer;">
+            <input type="checkbox" id="test-timer-toggle" style="width:16px;height:16px;">
+            Time this test
+          </label>
+          <div id="test-timer-minutes-wrap" style="display:none;margin-top:10px;">
+            <label style="font-size:12.5px;color:var(--gray);display:block;margin-bottom:4px;">Total minutes</label>
+            <input class="wd-input" id="test-timer-minutes" type="number" min="1" max="120" value="10">
+          </div>
+        </div>
+        ${state.testSetupError ? `<p style="color:var(--red);font-size:12.5px;margin:10px 0 0;">${esc(state.testSetupError)}</p>` : ""}
+        <button class="btn-primary" data-action="start-test" style="width:100%;margin-top:18px;">Start test</button>
+      </div>`;
+  }
+
+  const ses = state.session;
+
+  if (ses.finished) {
+    const pct = Math.round((ses.correctCount / ses.queue.length) * 100);
+    return `
+      <div style="max-width:560px;margin:0 auto;">
+        <button class="btn-ghost" data-action="exit-mode" style="margin-bottom:16px;">${ICONS.back} Back to set</button>
+        <div style="text-align:center;margin-bottom:28px;">
+          ${progressArc(pct, 76, 7)}
+          <h2 class="wd-h" style="font-size:22px;margin:14px 0 4px;">${ses.correctCount} / ${ses.queue.length} correct</h2>
+          <p style="font-size:13.5px;color:var(--gray);margin:0;">${ses.timedOut ? "Time ran out — " : ""}${pct}% score${ses.timerEnabled ? ` · ${formatDuration(Math.max(0, ses.elapsedMs))} taken` : ""}</p>
+        </div>
+        <h3 class="wd-h" style="font-size:15px;margin:0 0 10px;">Review</h3>
+        <div style="display:grid;gap:8px;">
+          ${ses.queue.map((q, i) => {
+            const ans = ses.answers[i];
+            const wasCorrect = ans && ans.optId === q.card.id;
+            return `
+              <div class="wd-card" style="padding:14px;border-color:${wasCorrect ? "var(--green)" : "var(--red)"};">
+                <p style="font-size:12px;color:${wasCorrect ? "var(--green)" : "var(--red)"};font-weight:700;margin:0 0 4px;">${wasCorrect ? "Correct" : (ans ? "Missed" : "Not answered")}</p>
+                <p style="font-size:13.5px;color:var(--blueDark);margin:0 0 4px;">${esc(q.card.definition)}</p>
+                <p style="font-size:13px;margin:0;color:var(--blueDark);"><strong>${esc(q.card.term)}</strong>${!wasCorrect && ans ? ` <span style="color:var(--red);">— you picked ${esc((q.options.find(o=>o.id===ans.optId)||{}).term || "—")}</span>` : ""}</p>
+              </div>`;
+          }).join("")}
+        </div>
+        <div class="row-center" style="margin-top:20px;">
+          <button class="btn-primary" data-action="restart-test">${ICONS.redo} Take another test</button>
+        </div>
+      </div>`;
+  }
+
+  const cur = ses.queue[ses.qi];
+  const pct = (ses.qi / ses.queue.length) * 100;
+  return `
+    <div style="max-width:560px;margin:0 auto;">
+      <div style="display:flex;align-items:center;gap:14px;">
+        <button class="btn-ghost" data-action="exit-mode">${ICONS.back} Exit</button>
+        <div class="progress-track"><div class="progress-fill" style="width:${pct}%;"></div></div>
+        <span style="font-size:13px;color:var(--gray);min-width:50px;text-align:right;">${ses.qi+1} / ${ses.queue.length}</span>
+        ${ses.timerEnabled ? `<span style="font-size:13px;color:${ses.remainingSeconds<30?"var(--red)":"var(--blueDark)"};font-weight:700;display:flex;align-items:center;gap:4px;min-width:56px;">${ICONS.clock} ${Math.floor(ses.remainingSeconds/60)}:${String(ses.remainingSeconds%60).padStart(2,"0")}</span>` : ""}
+      </div>
+      <div class="wd-card" style="padding:28px;margin-top:20px;text-align:center;">
+        <span style="font-size:11px;letter-spacing:1.5px;font-weight:700;color:var(--orange);">QUESTION ${ses.qi+1}</span>
+        <p class="wd-h" style="font-size:19px;margin:14px 0 0;line-height:1.5;">${esc(cur.card.definition)}</p>
+      </div>
+      <div style="display:grid;gap:10px;margin-top:18px;">
+        ${cur.options.map(opt => `<button class="option-btn" data-action="test-choose" data-opt-id="${opt.id}">${esc(opt.term)}</button>`).join("")}
+      </div>
+    </div>`;
+}
+
 function viewMatch(){
   const s = getActiveSet();
   if (!s) { state.view="dashboard"; return viewDashboard(); }
@@ -1994,6 +2086,11 @@ function bindEvents(){
   const passInput = document.getElementById("admin-passcode-input");
   if (passInput) passInput.addEventListener("keydown", e => {
     if (e.key === "Enter") { e.preventDefault(); handleAction("submit-admin-passcode"); }
+  });
+  const testTimerToggle = document.getElementById("test-timer-toggle");
+  if (testTimerToggle) testTimerToggle.addEventListener("change", e => {
+    const wrap = document.getElementById("test-timer-minutes-wrap");
+    if (wrap) wrap.style.display = e.target.checked ? "block" : "none";
   });
   const importFileInput = document.getElementById("import-file-input");
   if (importFileInput) importFileInput.addEventListener("change", e => {
@@ -2519,6 +2616,65 @@ async function handleAction(action, el){
     case "pick-mode":
       state.session = null;
       state.view = el.getAttribute("data-mode"); render(); break;
+    case "start-test": {
+      const s = getActiveSet();
+      const countInput = document.getElementById("test-question-count");
+      const timerToggle = document.getElementById("test-timer-toggle");
+      const minutesInput = document.getElementById("test-timer-minutes");
+      let count = parseInt(countInput ? countInput.value : "10", 10);
+      if (!count || count < 1) count = 1;
+      if (count > s.cards.length) count = s.cards.length;
+      const timerEnabled = !!(timerToggle && timerToggle.checked);
+      let minutes = parseInt(minutesInput ? minutesInput.value : "10", 10);
+      if (!minutes || minutes < 1) minutes = 1;
+      state.testSetupError = null;
+      const queue = buildTestQueue(s.cards, count);
+      const ses = {
+        mode: "test", queue, qi: 0, answers: [], correctCount: 0,
+        finished: false, timedOut: false,
+        timerEnabled, remainingSeconds: timerEnabled ? minutes * 60 : null,
+        startedAt: Date.now(), elapsedMs: 0, timer: null,
+      };
+      state.session = ses;
+      if (timerEnabled) {
+        ses.timer = setInterval(() => {
+          if (!state.session || state.session !== ses || ses.finished) { clearInterval(ses.timer); return; }
+          ses.remainingSeconds--;
+          if (ses.remainingSeconds <= 0) {
+            clearInterval(ses.timer);
+            ses.remainingSeconds = 0;
+            ses.finished = true;
+            ses.timedOut = true;
+            ses.elapsedMs = Date.now() - ses.startedAt;
+          }
+          render();
+        }, 1000);
+      }
+      render();
+      return;
+    }
+    case "test-choose": {
+      const ses = state.session;
+      if (!ses || ses.finished) return;
+      const optId = el.getAttribute("data-opt-id");
+      const cur = ses.queue[ses.qi];
+      const correct = optId === cur.card.id;
+      ses.answers[ses.qi] = { optId };
+      if (correct) ses.correctCount++;
+      ses.qi++;
+      if (ses.qi >= ses.queue.length) {
+        if (ses.timer) clearInterval(ses.timer);
+        ses.finished = true;
+        ses.elapsedMs = Date.now() - ses.startedAt;
+      }
+      render();
+      return;
+    }
+    case "restart-test":
+      if (state.session && state.session.timer) clearInterval(state.session.timer);
+      state.session = null;
+      render();
+      return;
     case "exit-mode":
       if (state.session && state.session.timer) clearInterval(state.session.timer);
       state.session = null; state.view = "mode-select"; render(); break;
