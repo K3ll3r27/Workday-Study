@@ -206,6 +206,12 @@ async function fbRemove(collection, id){
 
 const STORAGE_KEY = "wd_study_sets_v1";
 const FOLDERS = ["HCM Core", "Supply Chain", "Financial", "Learning and Talent", "Benefits"];
+const LEADERBOARD_CATEGORIES = [
+  { label: "Overall Leaderboard", folder: null },
+  { label: "HCM Core Leaderboard", folder: "HCM Core" },
+  { label: "SCM Leaderboard", folder: "Supply Chain" },
+  { label: "Financial Leaderboard", folder: "Financial" },
+];
 const TICKET_CATEGORIES = ["Bug", "Feature request", "Content issue", "Other"];
 const TICKET_PRIORITIES = ["Low", "Medium", "High"];
 const PRIORITY_COLOR = { Low: "var(--gray)", Medium: "var(--blue)", High: "var(--red)" };
@@ -1193,6 +1199,7 @@ let state = {
   certCarouselIndex: 0,
   resetPinEmployeeId: null,
   resetPinError: null,
+  leaderboardCarouselIndex: 0,
   importModalOpen: false,
   importError: null,
   extractedText: "",
@@ -1377,8 +1384,11 @@ function viewDashboard(){
     </div>` : "";
 
   const employees = loadEmployees();
+  const lbCatIdx = LEADERBOARD_CATEGORIES.length ? (state.leaderboardCarouselIndex % LEADERBOARD_CATEGORIES.length) : 0;
+  const lbCat = LEADERBOARD_CATEGORIES[lbCatIdx];
+  const scopedSets = lbCat.folder ? state.sets.filter(s => s.folder === lbCat.folder) : state.sets;
   const board = employees
-    .map(e => ({ id: e.id, name: e.name, mastery: overallMasteryPct(e.id, state.sets) }))
+    .map(e => ({ id: e.id, name: e.name, mastery: overallMasteryPct(e.id, scopedSets) }))
     .sort((a,b) => b.mastery - a.mastery);
   const topBoard = board.slice(0, 5);
   const myRank = board.findIndex(r => r.id === state.currentEmployeeId) + 1;
@@ -1387,24 +1397,29 @@ function viewDashboard(){
   const leaderboardWidget = `
     <aside class="leaderboard-widget">
       <div class="wd-card" style="padding:18px;">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
-          <h3 class="wd-h" style="font-size:15px;margin:0;display:flex;align-items:center;gap:7px;color:var(--orange);">${ICONS.trophy} Leaderboard</h3>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+          <h3 class="wd-h" style="font-size:15px;margin:0;display:flex;align-items:center;gap:7px;color:var(--orange);">${ICONS.trophy} ${esc(lbCat.label)}</h3>
           <button class="btn-ghost" data-action="open-leaderboard" style="font-size:12px;padding:3px 8px;">View all</button>
         </div>
-        ${topBoard.length === 0 ? `
-          <p style="font-size:12.5px;color:var(--gray);margin:0;">No one's checked in yet — be the first!</p>
-        ` : `
-          <div style="display:grid;gap:2px;">
-            ${topBoard.map((r,i) => `
-              <div style="display:flex;align-items:center;gap:10px;padding:8px 6px;border-radius:8px;${r.id===state.currentEmployeeId?"background:#FFF6E9;":""}">
-                <span style="font-size:13px;width:22px;color:var(--gray);">${rankIcon(i)}</span>
-                <span style="flex:1;font-size:13.5px;color:var(--blueDark);font-weight:${r.id===state.currentEmployeeId?"700":"500"};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(r.name)}${r.id===state.currentEmployeeId?" (you)":""}</span>
-                <span style="font-size:12.5px;font-weight:700;color:var(--orange);">${r.mastery}%</span>
-              </div>
-            `).join("")}
-          </div>
-          ${myRank > 5 ? `<p style="font-size:12px;color:var(--gray);margin:12px 0 0;border-top:1px solid var(--border);padding-top:10px;">You're ranked #${myRank}</p>` : ""}
-        `}
+        <div class="cert-slide" style="margin-top:8px;">
+          ${topBoard.length === 0 ? `
+            <p style="font-size:12.5px;color:var(--gray);margin:0;">${scopedSets.length === 0 ? "No sets in this category yet." : "No one's checked in yet — be the first!"}</p>
+          ` : `
+            <div style="display:grid;gap:2px;">
+              ${topBoard.map((r,i) => `
+                <div style="display:flex;align-items:center;gap:10px;padding:8px 6px;border-radius:8px;${r.id===state.currentEmployeeId?"background:#FFF6E9;":""}">
+                  <span style="font-size:13px;width:22px;color:var(--gray);">${rankIcon(i)}</span>
+                  <span style="flex:1;font-size:13.5px;color:var(--blueDark);font-weight:${r.id===state.currentEmployeeId?"700":"500"};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(r.name)}${r.id===state.currentEmployeeId?" (you)":""}</span>
+                  <span style="font-size:12.5px;font-weight:700;color:var(--orange);">${r.mastery}%</span>
+                </div>
+              `).join("")}
+            </div>
+            ${myRank > 5 ? `<p style="font-size:12px;color:var(--gray);margin:12px 0 0;border-top:1px solid var(--border);padding-top:10px;">You're ranked #${myRank}</p>` : ""}
+          `}
+        </div>
+        <div style="display:flex;gap:5px;justify-content:center;margin-top:12px;">
+          ${LEADERBOARD_CATEGORIES.map((c,i) => `<button data-action="leaderboard-widget-select" data-index="${i}" style="width:${i===lbCatIdx?"18px":"6px"};height:6px;border-radius:999px;border:none;background:${i===lbCatIdx?"var(--orange)":"var(--border)"};cursor:pointer;transition:width .2s ease;padding:0;"></button>`).join("")}
+        </div>
       </div>
     </aside>`;
 
@@ -1966,6 +1981,10 @@ async function handleAction(action, el){
       state.certCarouselIndex = parseInt(el.getAttribute("data-index"), 10) || 0;
       render();
       return;
+    case "leaderboard-widget-select":
+      state.leaderboardCarouselIndex = parseInt(el.getAttribute("data-index"), 10) || 0;
+      render();
+      return;
     case "open-sidebar":
       state.sidebarOpen = true; render(); return;
     case "open-move-folder":
@@ -2435,6 +2454,14 @@ function startApp(){
       render();
     }
   }, 4500);
+  setInterval(() => {
+    if (state.view !== "dashboard") return;
+    if (document.querySelector(".modal-overlay, .sidebar-overlay")) return;
+    const active = document.activeElement;
+    if (active && ["INPUT","TEXTAREA","SELECT"].includes(active.tagName)) return;
+    state.leaderboardCarouselIndex = state.leaderboardCarouselIndex + 1;
+    render();
+  }, 5500);
 }
 
 function setupActivityTracking(){
