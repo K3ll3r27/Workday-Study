@@ -1333,7 +1333,20 @@ function viewDashboard(){
     </div>` : "";
 
   const cardsHtml = sets.length === 0
-    ? `<div style="text-align:center;padding:60px;color:var(--gray);">${state.activeFolder === null ? "No study sets yet. Create the first one." : "No sets in this folder yet."}</div>`
+    ? `<div style="text-align:center;padding:50px 20px;">
+        <svg width="80" height="80" viewBox="0 0 100 100" style="margin-bottom:16px;">
+          <defs><linearGradient id="emptygrad" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#FDBA58"/><stop offset="100%" stop-color="#F4990B"/>
+          </linearGradient></defs>
+          <rect x="20" y="30" width="60" height="45" rx="6" fill="none" stroke="url(#emptygrad)" stroke-width="4"/>
+          <line x1="20" y1="44" x2="80" y2="44" stroke="url(#emptygrad)" stroke-width="4"/>
+          <circle cx="50" cy="60" r="9" fill="none" stroke="url(#emptygrad)" stroke-width="4"/>
+          <line x1="50" y1="55" x2="50" y2="65" stroke="url(#emptygrad)" stroke-width="4" stroke-linecap="round"/>
+          <line x1="45" y1="60" x2="55" y2="60" stroke="url(#emptygrad)" stroke-width="4" stroke-linecap="round"/>
+        </svg>
+        <p class="wd-h" style="font-size:16px;margin:0 0 6px;">${state.activeFolder === null ? "No study sets yet" : "Nothing in this folder yet"}</p>
+        <p style="font-size:13px;color:var(--gray);margin:0;">${state.activeFolder === null ? "Create one, or import a set from a document." : "Move a set here, or create a new one."}</p>
+      </div>`
     : `<div class="grid-sets">
         ${sets.map(s => `
           <div class="wd-card clickable" style="padding:20px;" data-action="open-set" data-id="${s.id}">
@@ -1573,8 +1586,17 @@ function topBar(pct, label, showShuffle){
 }
 
 /* ---------------- Learn ---------------- */
-function buildLearnQueue(cards){
-  return shuffle(cards).map(c => {
+function buildLearnQueue(cards, employeeId, setId){
+  let weak = cards, strong = [];
+  if (employeeId && setId) {
+    const store = loadProgress();
+    const p = store[employeeId];
+    const masteredIds = (p && p.mastered && p.mastered[setId]) || [];
+    weak = cards.filter(c => !masteredIds.includes(c.id));
+    strong = cards.filter(c => masteredIds.includes(c.id));
+  }
+  const ordered = [...shuffle(weak), ...shuffle(strong)]; // not-yet-mastered cards surface first
+  return ordered.map(c => {
     const others = shuffle(cards.filter(x=>x.id!==c.id)).slice(0,3);
     return { card:c, options: shuffle([c, ...others]) };
   });
@@ -1589,7 +1611,8 @@ function viewLearn(){
       <div style="max-width:480px;margin:60px auto;text-align:center;">
         <button class="btn-ghost" data-action="exit-mode" style="margin-bottom:20px;">${ICONS.back} Exit</button>
         <h2 class="wd-h" style="font-size:20px;margin:0 0 8px;">How do you want to be quizzed?</h2>
-        <p style="font-size:13.5px;color:var(--gray);margin:0 0 22px;">You can switch this again on your next round.</p>
+        <p style="font-size:13.5px;color:var(--gray);margin:0 0 8px;">You can switch this again on your next round.</p>
+        <p style="font-size:12.5px;color:var(--blue);margin:0 0 22px;display:flex;align-items:center;gap:6px;justify-content:center;">${ICONS.trophy} Cards you haven't mastered yet come up first</p>
         <div style="display:grid;gap:12px;">
           <button class="wd-card clickable" style="padding:18px;text-align:left;" data-action="start-learn" data-direction="defToTerm">
             <p class="wd-h" style="font-size:15px;margin:0 0 4px;">See the definition → pick the term</p>
@@ -2255,7 +2278,7 @@ async function handleAction(action, el){
     case "start-learn": {
       const s = getActiveSet();
       const direction = el.getAttribute("data-direction") || "defToTerm";
-      state.session = { mode:"learn", queue: buildLearnQueue(s.cards), qi:0, selected:null, correct:0, total:0, missedIds:[], direction };
+      state.session = { mode:"learn", queue: buildLearnQueue(s.cards, state.currentEmployeeId, s.id), qi:0, selected:null, correct:0, total:0, missedIds:[], direction };
       render(); return;
     }
     case "learn-choose": {
@@ -2295,7 +2318,7 @@ async function handleAction(action, el){
         const missedCards = s.cards.filter(c => prevMissedIds.includes(c.id));
         pool = missedCards.length ? missedCards : s.cards;
       }
-      state.session = { mode:"learn", queue: buildLearnQueue(pool), qi:0, selected:null, correct:0, total:0, missedIds:[], direction: prevDirection };
+      state.session = { mode:"learn", queue: buildLearnQueue(pool, state.currentEmployeeId, s.id), qi:0, selected:null, correct:0, total:0, missedIds:[], direction: prevDirection };
       render(); break;
     }
 
