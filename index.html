@@ -691,6 +691,13 @@ function viewAdminHub(){
       `}
     </div>
     <div class="wd-card" style="padding:20px;max-width:480px;margin-top:14px;">
+      <p style="font-size:12.5px;font-weight:700;color:var(--blueDark);margin:0 0 8px;">STAY LOGGED IN</p>
+      <p style="font-size:13.5px;color:var(--gray);margin:0 0 14px;line-height:1.6;">${isInactivityLockoutDisabled()
+        ? "The 5-minute inactivity timeout is off for your profile — you won't get kicked back to login while you're working on updates."
+        : "By default, everyone (including you) gets logged out after 5 minutes idle. Turn this off just for yourself while you're doing admin work, so it doesn't interrupt you."}</p>
+      <button class="btn-secondary" data-action="toggle-admin-timeout" data-enable="${isInactivityLockoutDisabled() ? "0" : "1"}">${isInactivityLockoutDisabled() ? "Turn timeout back on" : "Disable timeout for me"}</button>
+    </div>
+    <div class="wd-card" style="padding:20px;max-width:480px;margin-top:14px;">
       <p style="font-size:12.5px;font-weight:700;color:var(--blueDark);margin:0 0 8px;">DUPLICATE PROFILES</p>
       <p style="font-size:13.5px;color:var(--gray);margin:0 0 14px;line-height:1.6;">If the same person ended up with two profiles (e.g. from checking in on different devices before syncing), this combines them into one — merging their progress and reassigning their certificate photos to a single profile.</p>
       <button class="btn-secondary" data-action="merge-duplicate-employees">Merge duplicate profiles</button>
@@ -1822,6 +1829,14 @@ async function handleAction(action, el){
       if (!isAdminUser()) return;
       await mergeDuplicateEmployees();
       return;
+    case "toggle-admin-timeout": {
+      if (!isAdminUser()) return;
+      const enable = el.getAttribute("data-enable") === "1";
+      setInactivityLockoutDisabled(enable);
+      showToast(enable ? "Inactivity timeout is off for you." : "Inactivity timeout is back on.");
+      render();
+      return;
+    }
     case "cert-carousel-select":
       state.certCarouselIndex = parseInt(el.getAttribute("data-index"), 10) || 0;
       render();
@@ -2227,6 +2242,14 @@ const LOGIN_HASH = "dd015a0fdd97aa8bf83e923b9d06bbf377bd308becbca039fce9d31bb552
 const LOGIN_KEY = "wd_site_unlocked_v1";
 const ACTIVITY_KEY = "wd_last_activity_v1";
 const INACTIVITY_LIMIT_MS = 5 * 60 * 1000; // 5 minutes
+const ADMIN_NO_TIMEOUT_KEY = "wd_admin_no_timeout_v1";
+
+function isInactivityLockoutDisabled(){
+  try { return localStorage.getItem(ADMIN_NO_TIMEOUT_KEY) === "1"; } catch(e) { return false; }
+}
+function setInactivityLockoutDisabled(on){
+  try { localStorage.setItem(ADMIN_NO_TIMEOUT_KEY, on ? "1" : "0"); } catch(e) {}
+}
 
 function recordActivity(){
   try { sessionStorage.setItem(ACTIVITY_KEY, String(Date.now())); } catch(e) {}
@@ -2299,6 +2322,7 @@ function setupActivityTracking(){
   // Periodically check whether the inactivity window has been exceeded —
   // catches both "sat idle" and "closed the tab and came back later".
   setInterval(() => {
+    if (isAdminUser() && isInactivityLockoutDisabled()) return;
     if (Date.now() - getLastActivity() > INACTIVITY_LIMIT_MS) {
       forceLogout("Your session timed out after 5 minutes — please log in again.");
     }
