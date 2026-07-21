@@ -1666,6 +1666,10 @@ function viewFlashcards(){
         <button class="btn-secondary" style="border-color:var(--red);color:var(--red);display:flex;align-items:center;gap:6px;" data-action="flash-next" data-mark="unknown">${ICONS.x} Still learning</button>
         <button class="btn-primary" style="display:flex;align-items:center;gap:6px;" data-action="flash-next" data-mark="known">${ICONS.check} Knew it</button>
       </div>
+      <div class="row-center" style="margin-top:12px;">
+        <button class="btn-ghost" data-action="flash-prev" ${ses.i===0?"disabled":""} style="display:flex;align-items:center;gap:5px;${ses.i===0?"opacity:.4;":""}">${ICONS.back} Back</button>
+        <button class="btn-ghost" data-action="flash-forward" ${ses.i>=ses.order.length-1?"disabled":""} style="display:flex;align-items:center;gap:5px;${ses.i>=ses.order.length-1?"opacity:.4;":""}">Skip ahead ${ICONS.chevron}</button>
+      </div>
     </div>
   `;
 }
@@ -2395,6 +2399,20 @@ async function handleAction(action, el){
       setTimeout(() => { state.session.i++; state.session._advancing = false; render(); }, 120);
       return;
     }
+    case "flash-prev": {
+      const ses = state.session;
+      if (!ses || ses.i <= 0) return;
+      ses.i--; ses.flipped = false;
+      render();
+      return;
+    }
+    case "flash-forward": {
+      const ses = state.session;
+      if (!ses || ses.i >= ses.order.length - 1) return;
+      ses.i++; ses.flipped = false;
+      render();
+      return;
+    }
     case "restart-flashcards": {
       const missed = el.getAttribute("data-missed") === "1";
       const s = getActiveSet();
@@ -2567,7 +2585,7 @@ function startApp(){
       state.certCarouselIndex = state.certCarouselIndex + 1;
       render();
     }
-  }, 9000);
+  }, 12000);
   setInterval(() => {
     if (state.view !== "dashboard") return;
     if (document.querySelector(".modal-overlay, .sidebar-overlay")) return;
@@ -2575,7 +2593,7 @@ function startApp(){
     if (active && ["INPUT","TEXTAREA","SELECT"].includes(active.tagName)) return;
     state.leaderboardCarouselIndex = state.leaderboardCarouselIndex + 1;
     render();
-  }, 11000);
+  }, 15000);
 }
 
 function setupActivityTracking(){
