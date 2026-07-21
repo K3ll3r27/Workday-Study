@@ -678,7 +678,32 @@ function viewAdminHub(){
     `}
   `;
 
-  const maintOn = isMaintenanceOn();
+  const allEmployees = loadEmployees().slice().sort((a,b) => a.name.localeCompare(b.name));
+  const profilesPanel = `
+    <h2 class="wd-h" style="font-size:19px;margin:0 0 14px;">Profiles</h2>
+    ${allEmployees.length === 0 ? `<p style="font-size:13px;color:var(--gray);">No one's checked in yet.</p>` : `
+      <div style="display:grid;gap:8px;">
+        ${allEmployees.map(e => {
+          const isSelf = e.name.trim().toLowerCase() === ADMIN_EMPLOYEE_NAME;
+          return `
+          <div class="wd-card" style="padding:14px 16px;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
+            <div>
+              <p style="font-size:14px;font-weight:600;color:var(--blueDark);margin:0 0 2px;">${esc(e.name)}${isSelf ? " (you)" : ""}</p>
+              ${e.suspended ? `<span style="font-size:11px;font-weight:700;color:var(--red);background:#FBEAE8;border-radius:999px;padding:2px 9px;">Suspended</span>` : `<span style="font-size:11px;color:var(--gray);">Active</span>`}
+            </div>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;">
+              <button class="btn-ghost" data-action="open-reset-pin" data-id="${e.id}" style="font-size:12px;padding:5px 11px;border:1px solid var(--border);border-radius:999px;">Reset PIN</button>
+              ${!isSelf ? `
+                <button class="btn-ghost" data-action="toggle-suspend-employee" data-id="${e.id}" style="font-size:12px;padding:5px 11px;border:1px solid ${e.suspended ? "var(--green)" : "var(--orange)"};border-radius:999px;color:${e.suspended ? "var(--green)" : "var(--orange)"};">${e.suspended ? "Unsuspend" : "Suspend"}</button>
+                <button class="btn-ghost" data-action="delete-employee" data-id="${e.id}" style="font-size:12px;padding:5px 11px;border:1px solid var(--border);border-radius:999px;color:var(--red);">Delete</button>
+              ` : ""}
+            </div>
+          </div>`;
+        }).join("")}
+      </div>
+    `}
+  `;
+
   const maintenancePanel = `
     <h2 class="wd-h" style="font-size:19px;margin:0 0 14px;">Maintenance</h2>
     <div class="wd-card" style="padding:20px;max-width:480px;">
@@ -709,6 +734,7 @@ function viewAdminHub(){
       <div class="admin-sidebar">
         <p style="font-size:11px;letter-spacing:1px;font-weight:700;color:var(--gray);padding:0 10px;margin:0 0 6px;">ADMIN HUB</p>
         ${navItem("tickets", "Tickets", openCount > 0 ? openCount : null)}
+        ${navItem("profiles", "Profiles", allEmployees.length > 0 ? allEmployees.length : null)}
         ${navItem("certificates", "Certificates", certificates.length > 0 ? certificates.length : null)}
         ${navItem("code", "Code updates", null)}
         ${navItem("maintenance", "Maintenance", maintOn ? "ON" : null)}
@@ -716,7 +742,7 @@ function viewAdminHub(){
         <button class="folder-item" data-action="exit-admin-hub">${ICONS.back} Back to StudyDay</button>
       </div>
       <div class="admin-main">
-        ${section === "code" ? codePanel : section === "certificates" ? certsPanel : section === "maintenance" ? maintenancePanel : ticketsPanel}
+        ${section === "code" ? codePanel : section === "certificates" ? certsPanel : section === "maintenance" ? maintenancePanel : section === "profiles" ? profilesPanel : ticketsPanel}
       </div>
     </div>
   `;
@@ -949,6 +975,26 @@ function renderCertModal(){
     </div>`;
 }
 
+function renderResetPinModal(){
+  if (!state.resetPinEmployeeId) return "";
+  const emp = loadEmployees().find(e => e.id === state.resetPinEmployeeId);
+  if (!emp) return "";
+  return `
+    <div class="modal-overlay" data-action="close-reset-pin">
+      <div class="modal-box" data-stop="1">
+        <h3 class="wd-h" style="font-size:16px;margin:0 0 4px;">Reset PIN for ${esc(emp.name)}</h3>
+        <p style="font-size:13px;color:var(--gray);margin:0 0 14px;">Set a new 4-digit PIN, then let them know what it is.</p>
+        <input class="wd-input" id="reset-pin-input" type="password" inputmode="numeric" maxlength="4" placeholder="New 4-digit PIN" style="margin-bottom:10px;">
+        <input class="wd-input" id="reset-pin-input2" type="password" inputmode="numeric" maxlength="4" placeholder="Confirm PIN" style="margin-bottom:6px;">
+        ${state.resetPinError ? `<p style="color:var(--red);font-size:12.5px;margin:6px 0 0;">${esc(state.resetPinError)}</p>` : ""}
+        <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px;">
+          <button class="btn-secondary" data-action="close-reset-pin">Cancel</button>
+          <button class="btn-primary" data-action="submit-reset-pin">Save new PIN</button>
+        </div>
+      </div>
+    </div>`;
+}
+
 function renderMoveFolderModal(){
   if (!state.moveFolderSetId) return "";
   const s = state.sets.find(x => x.id === state.moveFolderSetId);
@@ -1144,6 +1190,8 @@ let state = {
   certPhotoDataUrl: null,
   certError: null,
   certCarouselIndex: 0,
+  resetPinEmployeeId: null,
+  resetPinError: null,
   importModalOpen: false,
   importError: null,
   extractedText: "",
@@ -1234,6 +1282,7 @@ function render(){
     ${renderFeedbackModal()}
     ${renderImportModal()}
     ${renderMoveFolderModal()}
+    ${renderResetPinModal()}
     ${renderProfileMenu()}
     ${renderCertModal()}
     ${renderSidebar()}
@@ -1837,6 +1886,58 @@ async function handleAction(action, el){
       render();
       return;
     }
+    case "open-reset-pin":
+      if (!isAdminUser()) return;
+      state.resetPinEmployeeId = el.getAttribute("data-id"); state.resetPinError = null; render(); return;
+    case "close-reset-pin":
+      state.resetPinEmployeeId = null; state.resetPinError = null; render(); return;
+    case "submit-reset-pin": {
+      if (!isAdminUser()) return;
+      const emp = loadEmployees().find(e => e.id === state.resetPinEmployeeId);
+      if (!emp) return;
+      const p1 = document.getElementById("reset-pin-input");
+      const p2 = document.getElementById("reset-pin-input2");
+      const pin = p1 ? p1.value.trim() : "";
+      const pin2 = p2 ? p2.value.trim() : "";
+      if (!/^\d{4}$/.test(pin)) { state.resetPinError = "PIN must be exactly 4 digits."; render(); return; }
+      if (pin !== pin2) { state.resetPinError = "PINs don't match."; render(); return; }
+      const hash = await sha256Hex(emp.name.toLowerCase() + "|" + pin);
+      const list = loadEmployees();
+      const target = list.find(e => e.id === emp.id);
+      target.pinHash = hash;
+      saveEmployees(list);
+      fbPush("employees", target.id, target);
+      state.resetPinEmployeeId = null; state.resetPinError = null;
+      showToast(`PIN reset for ${emp.name}.`);
+      render();
+      return;
+    }
+    case "toggle-suspend-employee": {
+      if (!isAdminUser()) return;
+      const id = el.getAttribute("data-id");
+      const list = loadEmployees();
+      const target = list.find(e => e.id === id);
+      if (!target) return;
+      target.suspended = !target.suspended;
+      saveEmployees(list);
+      fbPush("employees", target.id, target);
+      showToast(target.suspended ? `${target.name} suspended.` : `${target.name} unsuspended.`);
+      render();
+      return;
+    }
+    case "delete-employee": {
+      if (!isAdminUser()) return;
+      const id = el.getAttribute("data-id");
+      const list = loadEmployees();
+      const target = list.find(e => e.id === id);
+      if (!target) return;
+      if (!confirm(`Delete ${target.name}'s profile? This can't be undone.`)) return;
+      saveEmployees(list.filter(e => e.id !== id));
+      fbRemove("employees", id);
+      showToast(`${target.name}'s profile was deleted.`);
+      render();
+      return;
+    }
     case "cert-carousel-select":
       state.certCarouselIndex = parseInt(el.getAttribute("data-index"), 10) || 0;
       render();
@@ -1972,6 +2073,7 @@ async function handleAction(action, el){
       if (!emp) { state.pinGateError = "Something went wrong — try again."; render(); return; }
       const hash = await sha256Hex(emp.name.toLowerCase() + "|" + pin);
       if (hash === emp.pinHash) {
+        if (emp.suspended) { state.pinGateError = "This profile has been suspended — contact your admin."; render(); return; }
         state.currentEmployeeId = emp.id;
         try { sessionStorage.setItem(CURRENT_EMPLOYEE_KEY, emp.id); } catch(e) {}
         state.pinGateSelectedId = null; state.pinGateError = null;
@@ -2267,9 +2369,11 @@ function clearSession(){
 function startApp(){
   try {
     const savedEmployeeId = sessionStorage.getItem(CURRENT_EMPLOYEE_KEY);
-    if (savedEmployeeId && loadEmployees().some(e => e.id === savedEmployeeId)) {
+    const savedEmp = savedEmployeeId ? loadEmployees().find(e => e.id === savedEmployeeId) : null;
+    if (savedEmp && !savedEmp.suspended) {
       state.currentEmployeeId = savedEmployeeId;
     } else {
+      if (savedEmp && savedEmp.suspended) { try { sessionStorage.removeItem(CURRENT_EMPLOYEE_KEY); } catch(e) {} }
       state.view = "pin-gate";
     }
   } catch(e) { state.view = "pin-gate"; }
