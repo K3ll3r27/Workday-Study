@@ -816,7 +816,7 @@ function viewLeaderboard(){
     mastery: overallMasteryPct(e.id, state.sets),
     accuracy: accuracyPct(e.id),
     time: (loadProgress()[e.id] || {}).totalTimeMs || 0,
-  }));
+  })).filter(r => r.mastery > 0 || r.accuracy !== null || r.time > 0);
   const sortKey = state.leaderboardSort;
   rows.sort((a,b) => {
     if (sortKey === "accuracy") return (b.accuracy||0) - (a.accuracy||0);
@@ -1387,8 +1387,14 @@ function viewDashboard(){
   const lbCatIdx = LEADERBOARD_CATEGORIES.length ? (state.leaderboardCarouselIndex % LEADERBOARD_CATEGORIES.length) : 0;
   const lbCat = LEADERBOARD_CATEGORIES[lbCatIdx];
   const scopedSets = lbCat.folder ? state.sets.filter(s => s.folder === lbCat.folder) : state.sets;
+  const progressStoreForBoard = loadProgress();
   const board = employees
-    .map(e => ({ id: e.id, name: e.name, mastery: overallMasteryPct(e.id, scopedSets) }))
+    .map(e => {
+      const p = getEmployeeProgress(progressStoreForBoard, e.id);
+      const masteredInScope = scopedSets.reduce((sum, s) => sum + ((p.mastered[s.id] || []).length), 0);
+      return { id: e.id, name: e.name, mastery: overallMasteryPct(e.id, scopedSets), touched: masteredInScope > 0 };
+    })
+    .filter(r => r.touched)
     .sort((a,b) => b.mastery - a.mastery);
   const topBoard = board.slice(0, 5);
   const myRank = board.findIndex(r => r.id === state.currentEmployeeId) + 1;
@@ -1403,7 +1409,7 @@ function viewDashboard(){
         </div>
         <div class="cert-slide" style="margin-top:8px;">
           ${topBoard.length === 0 ? `
-            <p style="font-size:12.5px;color:var(--gray);margin:0;">${scopedSets.length === 0 ? "No sets in this category yet." : "No one's checked in yet — be the first!"}</p>
+            <p style="font-size:12.5px;color:var(--gray);margin:0;">${scopedSets.length === 0 ? "No sets in this category yet." : "No one's mastered a card here yet — be the first!"}</p>
           ` : `
             <div style="display:grid;gap:2px;">
               ${topBoard.map((r,i) => `
