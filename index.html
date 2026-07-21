@@ -620,6 +620,8 @@ function renderAdminModal(){
 }
 
 const ADMIN_EMPLOYEE_NAME = "logan keller"; // lowercase, trimmed — matched against the checked-in name
+const AVATAR_OPTIONS = ["🦊","🐼","🐸","🦁","🐵","🐨","🦄","🐶","🐱","🦉","🐧","🐙","🐝","🦖","🐢","🐯","🐻","🦋","🐳","🐷"];
+function employeeAvatar(emp){ return (emp && emp.avatar) || "🙂"; }
 const MAINTENANCE_KEY = "wd_maintenance_v1";
 
 function isMaintenanceOn(){
@@ -724,9 +726,12 @@ function viewAdminHub(){
           const isSelf = e.name.trim().toLowerCase() === ADMIN_EMPLOYEE_NAME;
           return `
           <div class="wd-card" style="padding:14px 16px;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
-            <div>
-              <p style="font-size:14px;font-weight:600;color:var(--blueDark);margin:0 0 2px;">${esc(e.name)}${isSelf ? " (you)" : ""}</p>
-              ${e.suspended ? `<span style="font-size:11px;font-weight:700;color:var(--red);background:#FBEAE8;border-radius:999px;padding:2px 9px;">Suspended</span>` : `<span style="font-size:11px;color:var(--gray);">Active</span>`}
+            <div style="display:flex;align-items:center;gap:10px;">
+              <span style="font-size:22px;">${employeeAvatar(e)}</span>
+              <div>
+                <p style="font-size:14px;font-weight:600;color:var(--blueDark);margin:0 0 2px;">${esc(e.name)}${isSelf ? " (you)" : ""}</p>
+                ${e.suspended ? `<span style="font-size:11px;font-weight:700;color:var(--red);background:#FBEAE8;border-radius:999px;padding:2px 9px;">Suspended</span>` : `<span style="font-size:11px;color:var(--gray);">Active</span>`}
+              </div>
             </div>
             <div style="display:flex;gap:6px;flex-wrap:wrap;">
               <button class="btn-ghost" data-action="open-reset-pin" data-id="${e.id}" style="font-size:12px;padding:5px 11px;border:1px solid var(--border);border-radius:999px;">Reset PIN</button>
@@ -799,7 +804,13 @@ function viewPinGate(){
     return `
       <div style="max-width:380px;margin:60px auto;text-align:center;">
         <h2 class="wd-h" style="font-size:20px;margin:0 0 6px;">Set up your profile</h2>
-        <p style="font-size:13px;color:var(--gray);margin:0 0 20px;">Pick a name and a 4-digit PIN — you'll use these to check in next time.</p>
+        <p style="font-size:13px;color:var(--gray);margin:0 0 16px;">Pick a name, an avatar, and a 4-digit PIN — you'll use these to check in next time.</p>
+        <div style="font-size:48px;margin-bottom:10px;">${state.pinRegAvatar}</div>
+        <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-bottom:16px;">
+          ${AVATAR_OPTIONS.map(a => `
+            <button data-action="pin-reg-avatar-select" data-avatar="${a}" style="font-size:22px;padding:6px 0;border-radius:8px;border:2px solid ${state.pinRegAvatar===a?"var(--orange)":"var(--border)"};background:${state.pinRegAvatar===a?"#FFF6E9":"#fff"};cursor:pointer;">${a}</button>
+          `).join("")}
+        </div>
         <input class="wd-input" id="pin-reg-name" placeholder="Your name" style="margin-bottom:10px;">
         <input class="wd-input" id="pin-reg-pin" type="password" inputmode="numeric" maxlength="4" placeholder="4-digit PIN" style="margin-bottom:10px;">
         <input class="wd-input" id="pin-reg-pin2" type="password" inputmode="numeric" maxlength="4" placeholder="Confirm PIN" style="margin-bottom:6px;">
@@ -814,6 +825,7 @@ function viewPinGate(){
     if (!emp) { state.pinGateSelectedId = null; return viewPinGate(); }
     return `
       <div style="max-width:340px;margin:70px auto;text-align:center;">
+        <div style="font-size:44px;margin-bottom:6px;">${employeeAvatar(emp)}</div>
         <h2 class="wd-h" style="font-size:20px;margin:0 0 6px;">Hey, ${esc(emp.name)}</h2>
         <p style="font-size:13px;color:var(--gray);margin:0 0 20px;">Enter your PIN to continue.</p>
         <input class="wd-input" id="pin-enter-input" type="password" inputmode="numeric" maxlength="4" placeholder="4-digit PIN" style="text-align:center;font-size:20px;letter-spacing:6px;margin-bottom:6px;" autofocus>
@@ -831,7 +843,7 @@ function viewPinGate(){
         <div style="display:grid;gap:8px;margin-bottom:16px;">
           ${employees.map(e => `
             <button class="wd-card clickable" style="padding:14px;text-align:left;display:flex;align-items:center;gap:10px;" data-action="pin-select-employee" data-id="${e.id}">
-              <div class="icon-box" style="color:var(--blue);">${ICONS.layers}</div>
+              <div class="icon-box" style="font-size:20px;">${employeeAvatar(e)}</div>
               <span class="wd-h" style="font-size:15px;">${esc(e.name)}</span>
             </button>
           `).join("")}
@@ -848,7 +860,7 @@ function viewLeaderboard(){
   const tab = state.leaderboardTab || "ranking";
 
   const rows = employees.map(e => ({
-    id: e.id, name: e.name,
+    id: e.id, name: e.name, avatar: employeeAvatar(e),
     mastery: overallMasteryPct(e.id, state.sets),
     accuracy: accuracyPct(e.id),
     time: (loadProgress()[e.id] || {}).totalTimeMs || 0,
@@ -874,7 +886,7 @@ function viewLeaderboard(){
     return `
       <button class="btn-ghost" data-action="go-home" style="margin-bottom:16px;">${ICONS.back} Back</button>
       ${tabs}
-      <h2 class="wd-h" style="font-size:20px;margin:0 0 16px;">${esc(me.name)}'s progress</h2>
+      <h2 class="wd-h" style="font-size:20px;margin:0 0 16px;display:flex;align-items:center;gap:10px;"><span style="font-size:24px;">${employeeAvatar(me)}</span> ${esc(me.name)}'s progress</h2>
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:14px;margin-bottom:26px;">
         <div class="wd-card" style="padding:18px;text-align:center;">
           <div class="wd-h" style="font-size:26px;color:var(--orange);">${myMastery}%</div>
@@ -915,7 +927,7 @@ function viewLeaderboard(){
     <button class="btn-ghost" data-action="go-home" style="margin-bottom:16px;">${ICONS.back} Back</button>
     ${tabs}
     <h2 class="wd-h" style="font-size:20px;margin:0 0 4px;">Leaderboard</h2>
-    <p style="font-size:13px;color:var(--gray);margin:0 0 18px;">Ranked on this device — everyone will show up together once shared sync is on.</p>
+    <p style="font-size:13px;color:var(--gray);margin:0 0 18px;">Ranked across your whole team.</p>
     <div style="display:flex;gap:6px;margin-bottom:14px;">
       ${[["mastery","Mastery"],["accuracy","Accuracy"],["time","Time studied"]].map(([key,label]) => `
         <button class="btn-ghost" data-action="leaderboard-sort" data-sort="${key}" style="font-size:12px;padding:5px 11px;border-radius:999px;border:1px solid ${sortKey===key?"var(--blue)":"var(--border)"};color:${sortKey===key?"var(--blue)":"var(--gray)"};">${label}</button>
@@ -926,6 +938,7 @@ function viewLeaderboard(){
         ${rows.map((r,i) => `
           <div class="wd-card" style="padding:14px 16px;display:flex;align-items:center;gap:14px;${r.id===state.currentEmployeeId?"border-color:var(--orange);":""}">
             <span class="wd-h" style="font-size:16px;color:var(--gray);width:24px;">${i+1}</span>
+            <span style="font-size:20px;">${r.avatar}</span>
             <span style="flex:1;font-size:14px;color:var(--blueDark);font-weight:600;">${esc(r.name)}${r.id===state.currentEmployeeId?" (you)":""}</span>
             <span style="font-size:13px;color:var(--orange);width:52px;text-align:right;">${r.mastery}%</span>
             <span style="font-size:13px;color:var(--blue);width:52px;text-align:right;">${r.accuracy===null?"—":r.accuracy+"%"}</span>
@@ -1013,6 +1026,26 @@ function renderCertModal(){
         <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px;">
           <button class="btn-secondary" data-action="close-cert-modal">Cancel</button>
           <button class="btn-primary" data-action="submit-cert">Post it</button>
+        </div>
+      </div>
+    </div>`;
+}
+
+function renderAvatarModal(){
+  if (!state.avatarModalOpen) return "";
+  const emp = state.currentEmployeeId ? loadEmployees().find(e => e.id === state.currentEmployeeId) : null;
+  if (!emp) return "";
+  return `
+    <div class="modal-overlay" data-action="close-avatar-modal">
+      <div class="modal-box" data-stop="1">
+        <h3 class="wd-h" style="font-size:16px;margin:0 0 12px;">Pick your avatar</h3>
+        <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;">
+          ${AVATAR_OPTIONS.map(a => `
+            <button data-action="avatar-select" data-avatar="${a}" style="font-size:24px;padding:8px 0;border-radius:8px;border:2px solid ${employeeAvatar(emp)===a?"var(--orange)":"var(--border)"};background:${employeeAvatar(emp)===a?"#FFF6E9":"#fff"};cursor:pointer;">${a}</button>
+          `).join("")}
+        </div>
+        <div style="display:flex;justify-content:flex-end;margin-top:16px;">
+          <button class="btn-secondary" data-action="close-avatar-modal">Close</button>
         </div>
       </div>
     </div>`;
@@ -1236,6 +1269,8 @@ let state = {
   resetPinEmployeeId: null,
   resetPinError: null,
   leaderboardCarouselIndex: 0,
+  pinRegAvatar: AVATAR_OPTIONS[Math.floor(Math.random() * AVATAR_OPTIONS.length)],
+  avatarModalOpen: false,
   importModalOpen: false,
   importError: null,
   extractedText: "",
@@ -1303,9 +1338,10 @@ function render(){
             if (!emp) return "";
             return `
               <div style="position:relative;">
-                <button class="btn-ghost" data-action="toggle-profile-menu" style="font-size:13px;display:flex;align-items:center;gap:5px;">${esc(emp.name)} <span style="font-size:9px;">▾</span></button>
+                <button class="btn-ghost" data-action="toggle-profile-menu" style="font-size:13px;display:flex;align-items:center;gap:6px;"><span style="font-size:17px;">${employeeAvatar(emp)}</span> ${esc(emp.name)} <span style="font-size:9px;">▾</span></button>
                 ${state.profileMenuOpen ? `
                   <div data-stop="1" style="position:absolute;top:calc(100% + 6px);right:0;background:#fff;border:1px solid var(--border);border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.18);min-width:210px;z-index:81;overflow:hidden;">
+                    <button class="folder-item" data-action="open-avatar-modal"><span style="font-size:15px;">${employeeAvatar(emp)}</span> Change avatar</button>
                     <button class="folder-item" data-action="open-cert-modal">${ICONS.upload} Add certificate photo</button>
                     <button class="folder-item" data-action="profile-my-progress">${ICONS.trophy} My progress</button>
                     <div style="border-top:1px solid var(--border);"></div>
@@ -1327,6 +1363,7 @@ function render(){
     ${renderImportModal()}
     ${renderMoveFolderModal()}
     ${renderResetPinModal()}
+    ${renderAvatarModal()}
     ${renderProfileMenu()}
     ${renderCertModal()}
     ${renderSidebar()}
@@ -1428,7 +1465,7 @@ function viewDashboard(){
     .map(e => {
       const p = getEmployeeProgress(progressStoreForBoard, e.id);
       const masteredInScope = scopedSets.reduce((sum, s) => sum + ((p.mastered[s.id] || []).length), 0);
-      return { id: e.id, name: e.name, mastery: overallMasteryPct(e.id, scopedSets), touched: masteredInScope > 0 };
+      return { id: e.id, name: e.name, avatar: employeeAvatar(e), mastery: overallMasteryPct(e.id, scopedSets), touched: masteredInScope > 0 };
     })
     .filter(r => r.touched)
     .sort((a,b) => b.mastery - a.mastery);
@@ -1451,6 +1488,7 @@ function viewDashboard(){
               ${topBoard.map((r,i) => `
                 <div style="display:flex;align-items:center;gap:10px;padding:8px 6px;border-radius:8px;${r.id===state.currentEmployeeId?"background:#FFF6E9;":""}">
                   <span style="font-size:13px;width:22px;color:var(--gray);">${rankIcon(i)}</span>
+                  <span style="font-size:16px;">${r.avatar}</span>
                   <span style="flex:1;font-size:13.5px;color:var(--blueDark);font-weight:${r.id===state.currentEmployeeId?"700":"500"};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(r.name)}${r.id===state.currentEmployeeId?" (you)":""}</span>
                   <span style="font-size:12.5px;font-weight:700;color:var(--orange);">${r.mastery}%</span>
                 </div>
@@ -2202,7 +2240,7 @@ async function handleAction(action, el){
         render(); return;
       }
       const hash = await sha256Hex(name.toLowerCase() + "|" + pin);
-      const newEmp = { id: uid(), name, pinHash: hash, createdAt: Date.now() };
+      const newEmp = { id: uid(), name, pinHash: hash, avatar: state.pinRegAvatar, createdAt: Date.now() };
       employees.push(newEmp);
       saveEmployees(employees);
       fbPush("employees", newEmp.id, newEmp);
@@ -2228,6 +2266,26 @@ async function handleAction(action, el){
       state.profileMenuOpen = false; render(); return;
     case "profile-my-progress":
       state.profileMenuOpen = false; state.view = "leaderboard"; state.leaderboardTab = "mine"; render(); return;
+    case "pin-reg-avatar-select":
+      state.pinRegAvatar = el.getAttribute("data-avatar"); render(); return;
+    case "open-avatar-modal":
+      state.profileMenuOpen = false; state.avatarModalOpen = true; render(); return;
+    case "close-avatar-modal":
+      state.avatarModalOpen = false; render(); return;
+    case "avatar-select": {
+      const avatar = el.getAttribute("data-avatar");
+      const list = loadEmployees();
+      const target = list.find(e => e.id === state.currentEmployeeId);
+      if (target) {
+        target.avatar = avatar;
+        saveEmployees(list);
+        fbPush("employees", target.id, target);
+      }
+      state.avatarModalOpen = false;
+      showToast("Avatar updated.");
+      render();
+      return;
+    }
     case "open-cert-modal":
       state.profileMenuOpen = false; state.certModalOpen = true; state.certPhotoDataUrl = null; state.certError = null; render(); return;
     case "close-cert-modal":
@@ -2509,7 +2567,7 @@ function startApp(){
       state.certCarouselIndex = state.certCarouselIndex + 1;
       render();
     }
-  }, 4500);
+  }, 9000);
   setInterval(() => {
     if (state.view !== "dashboard") return;
     if (document.querySelector(".modal-overlay, .sidebar-overlay")) return;
@@ -2517,7 +2575,7 @@ function startApp(){
     if (active && ["INPUT","TEXTAREA","SELECT"].includes(active.tagName)) return;
     state.leaderboardCarouselIndex = state.leaderboardCarouselIndex + 1;
     render();
-  }, 5500);
+  }, 11000);
 }
 
 function setupActivityTracking(){
