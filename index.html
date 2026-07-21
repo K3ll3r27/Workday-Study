@@ -204,6 +204,37 @@ async function fbRemove(collection, id){
   catch (e) { console.error("fbRemove failed:", collection, id, e); }
 }
 
+async function fetchAllForBackup(){
+  const [cloudSets, cloudEmployees, cloudCerts, cloudFeedback] = await Promise.all([
+    fbPull("sets"), fbPull("employees"), fbPull("certificates"), fbPull("feedback"),
+  ]);
+  let progress = {};
+  try {
+    await fbAuthReady;
+    if (fbReady && fbDb) {
+      const snap = await fbDb.collection("progress").get();
+      snap.docs.forEach((d) => { progress[d.id] = d.data(); });
+    }
+  } catch (e) { console.error("progress backup fetch failed:", e); }
+  return {
+    exportedAt: new Date().toISOString(),
+    sets: cloudSets !== null ? cloudSets : state.sets,
+    employees: cloudEmployees !== null ? cloudEmployees : loadEmployees(),
+    certificates: cloudCerts !== null ? cloudCerts : loadCertificates(),
+    feedback: cloudFeedback !== null ? cloudFeedback : loadFeedback(),
+    progress,
+  };
+}
+
+function downloadJson(filename, dataObj){
+  const blob = new Blob([JSON.stringify(dataObj, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
 const STORAGE_KEY = "wd_study_sets_v1";
 const FOLDERS = ["HCM Core", "Supply Chain", "Financial", "Learning and Talent", "Benefits"];
 const LEADERBOARD_CATEGORIES = [
@@ -728,6 +759,11 @@ function viewAdminHub(){
         ? "The 5-minute inactivity timeout is off for your profile — you won't get kicked back to login while you're working on updates."
         : "By default, everyone (including you) gets logged out after 5 minutes idle. Turn this off just for yourself while you're doing admin work, so it doesn't interrupt you."}</p>
       <button class="btn-secondary" data-action="toggle-admin-timeout" data-enable="${isInactivityLockoutDisabled() ? "0" : "1"}">${isInactivityLockoutDisabled() ? "Turn timeout back on" : "Disable timeout for me"}</button>
+    </div>
+    <div class="wd-card" style="padding:20px;max-width:480px;margin-top:14px;">
+      <p style="font-size:12.5px;font-weight:700;color:var(--blueDark);margin:0 0 8px;">BACKUP</p>
+      <p style="font-size:13.5px;color:var(--gray);margin:0 0 14px;line-height:1.6;">Download everything currently in the shared database — sets, profiles, progress, certificates, and tickets — as one file. Cheap insurance in case anything ever needs to be restored.</p>
+      <button class="btn-secondary" data-action="export-backup" id="backup-btn">Download backup</button>
     </div>
     <div class="wd-card" style="padding:20px;max-width:480px;margin-top:14px;">
       <p style="font-size:12.5px;font-weight:700;color:var(--blueDark);margin:0 0 8px;">DUPLICATE PROFILES</p>
@@ -1923,6 +1959,20 @@ async function handleAction(action, el){
       if (!isAdminUser()) return;
       await mergeDuplicateEmployees();
       return;
+    case "export-backup": {
+      if (!isAdminUser()) return;
+      showToast("Building backup...");
+      try {
+        const data = await fetchAllForBackup();
+        const stamp = new Date().toISOString().slice(0, 10);
+        downloadJson(`studyday-backup-${stamp}.json`, data);
+        showToast("Backup downloaded.");
+      } catch (e) {
+        console.error("Backup failed:", e);
+        showToast("Backup failed — check your connection and try again.");
+      }
+      return;
+    }
     case "toggle-admin-timeout": {
       if (!isAdminUser()) return;
       const enable = el.getAttribute("data-enable") === "1";
