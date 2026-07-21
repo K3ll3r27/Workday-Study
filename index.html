@@ -253,6 +253,35 @@ const STATUS_COLOR = { "Open": "var(--orange)", "In Progress": "var(--blue)", "R
 
 function uid(){ return Math.random().toString(36).slice(2,10) + Date.now().toString(36).slice(-4); }
 function shuffle(arr){ const a=[...arr]; for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; }
+
+// --- Harder multiple-choice distractors ---
+// Instead of picking 3 random other cards, score every candidate by how much
+// its definition/term overlaps with the correct card's — then pick from that
+// harder pool (with some shuffling for variety across rounds), so the wrong
+// options actually sound plausible instead of being easy to eliminate.
+const MC_STOPWORDS = new Set(["that","this","with","from","have","which","their","there","these","those","about","would","could","should","where","when","what","into","only","also","such","than","then","they","them","your","will","been","being","some","more","most","each","other","must","used","uses","using","allows","allow","enables","enable","provides","provide"]);
+function mcTokenize(text){
+  return (text || "").toLowerCase().replace(/[^a-z0-9\s]/g, "").split(/\s+/).filter(w => w.length > 3 && !MC_STOPWORDS.has(w));
+}
+function mcSimilarity(defA, defB){
+  const a = new Set(mcTokenize(defA)), b = new Set(mcTokenize(defB));
+  if (a.size === 0 || b.size === 0) return 0;
+  let overlap = 0;
+  a.forEach(w => { if (b.has(w)) overlap++; });
+  return overlap / Math.sqrt(a.size * b.size);
+}
+function pickHardDistractors(card, allCards, count){
+  const candidates = allCards.filter(x => x.id !== card.id);
+  if (candidates.length <= count) return shuffle(candidates);
+  const scored = candidates.map(c => ({
+    c,
+    score: mcSimilarity(card.definition, c.definition) + mcSimilarity(card.term, c.term) * 0.5,
+  }));
+  scored.sort((a, b) => b.score - a.score);
+  const poolSize = Math.min(scored.length, Math.max(count * 2, 6)); // a slightly wider "hard" pool for round-to-round variety
+  const pool = scored.slice(0, poolSize).map(s => s.c);
+  return shuffle(pool).slice(0, count);
+}
 function esc(s){ const d=document.createElement("div"); d.innerText = s==null? "": s; return d.innerHTML; }
 
 /* ---------------- Local storage helpers ---------------- */
@@ -1862,7 +1891,7 @@ function buildLearnQueue(cards, employeeId, setId){
   }
   const ordered = [...shuffle(weak), ...shuffle(strong)]; // not-yet-mastered cards surface first
   return ordered.map(c => {
-    const others = shuffle(cards.filter(x=>x.id!==c.id)).slice(0,3);
+    const others = pickHardDistractors(c, cards, 3);
     return { card:c, options: shuffle([c, ...others]) };
   });
 }
@@ -1958,7 +1987,7 @@ function buildMatchTiles(cards){
 function buildTestQueue(cards, count){
   const chosen = shuffle(cards).slice(0, count);
   return chosen.map(c => {
-    const others = shuffle(cards.filter(x => x.id !== c.id)).slice(0, 3);
+    const others = pickHardDistractors(c, cards, 3);
     return { card: c, options: shuffle([c, ...others]) };
   });
 }
