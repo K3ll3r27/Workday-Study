@@ -235,7 +235,7 @@ function saveSets(sets){
 }
 
 function safeRender(){
-  if (document.querySelector(".modal-overlay")) return;
+  if (document.querySelector(".modal-overlay, .sidebar-overlay")) return;
   const active = document.activeElement;
   if (active && ["INPUT","TEXTAREA","SELECT"].includes(active.tagName)) return;
   render();
@@ -2427,7 +2427,7 @@ function startApp(){
   syncProgressFromCloud();
   setInterval(() => {
     if (state.view !== "dashboard") return;
-    if (document.querySelector(".modal-overlay")) return; // any modal open (e.g. admin passcode) — don't wipe it out
+    if (document.querySelector(".modal-overlay, .sidebar-overlay")) return; // any modal open (e.g. admin passcode) — don't wipe it out
     const active = document.activeElement;
     if (active && ["INPUT","TEXTAREA","SELECT"].includes(active.tagName)) return; // don't interrupt typing anywhere
     if (loadCertificates().length > 1) {
