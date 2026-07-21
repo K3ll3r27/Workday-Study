@@ -619,6 +619,91 @@ function renderAdminModal(){
     </div>`;
 }
 
+/* ---------------- New-user onboarding guide ---------------- */
+const GUIDE_SLIDES = [
+  { type: "intro", title: "How to use StudyDay", lead: "Everything you need to check in, study smarter, and see how you stack up — in about five minutes.", duration: 5000 },
+  { type: "card", icon: "🔑", step: "STEP 1", title: "Logging in", lead: "There are two layers — a shared team login, then your own personal check-in.",
+    steps: [
+      "Enter the <strong>shared username and password</strong> your admin gave you — everyone on the team uses the same one.",
+      "On the \"Who's studying?\" screen, tap your name if you've checked in before, or \"I'm new here\" the first time.",
+      "Enter your <strong>4-digit PIN</strong> to confirm it's you — that's it, you're in.",
+    ], duration: 7000 },
+  { type: "card", icon: "🦊", step: "STEP 2", title: "Your profile & avatar", lead: "Click your name in the top-right corner any time.",
+    grid: [
+      ["Change avatar", "Pick a new cartoon avatar whenever you want."],
+      ["My progress", "See your mastery, accuracy, and what to focus on next."],
+      ["Add certificate photo", "Share a photo once you've earned a certification."],
+      ["Switch profile", "Let a coworker check in without logging you out."],
+    ], duration: 7000 },
+  { type: "card", icon: "📁", step: "STEP 3", title: "Finding & organizing sets", lead: "Every study set is shared — anything you or a coworker creates, everyone sees.",
+    steps: [
+      "Tap the ☰ menu icon next to the logo to open folders: HCM Core, Supply Chain, Financial, Learning and Talent, and Benefits.",
+      "Tap the small folder icon on any set's card to move it into a different folder.",
+      "Click <strong>New study set</strong> to build one by hand, term by term.",
+    ], duration: 7000 },
+  { type: "card", icon: "📄", step: "STEP 4", title: "Importing from a document", lead: "Already have a training doc or study guide? Skip typing it all by hand.",
+    steps: [
+      "Click <strong>Import from a document</strong> on the homepage and upload your file.",
+      "Copy the ready-made prompt shown, and paste both into Claude or Copilot.",
+      "Paste what it gives back into StudyDay, review each card, and save.",
+    ], duration: 7500 },
+  { type: "card", icon: "🎯", step: "STEP 5", title: "The three study modes", lead: "",
+    grid: [
+      ["🃏 Flashcards", "Flip at your own pace, or browse freely with Back/Skip ahead."],
+      ["🧠 Learn", "Multiple-choice — cards you haven't mastered come up first."],
+      ["🔗 Match", "Race the clock pairing every term to its definition."],
+    ], duration: 7000 },
+  { type: "card", icon: "🏆", step: "STEP 6", title: "Progress & the leaderboard", lead: "The trophy icon in the header shows two tabs.",
+    steps: [
+      "<strong>Leaderboard</strong> — ranked by mastery, accuracy, or time studied, plus a rotating mini-leaderboard on the homepage.",
+      "<strong>My progress</strong> — your personal stats and a per-set breakdown of what to review next.",
+    ], duration: 6500 },
+  { type: "card", icon: "📸", step: "STEP 7", title: "Posting a certificate", lead: "Earned a certification? Show it off on the homepage.",
+    steps: [
+      "Click your name → <strong>Add certificate photo</strong>.",
+      "Upload a photo with your certificate, pick which one it is, and the date earned.",
+      "It shows up in the Recent Certificates carousel for the whole team.",
+    ], duration: 7000 },
+  { type: "card", icon: "💬", step: "STEP 8", title: "Reporting a problem", lead: "Found a bug, or have an idea?",
+    steps: [
+      "Click the speech bubble icon in the header.",
+      "Describe it, pick a category and priority, and submit — it goes straight to the admin queue.",
+    ], duration: 6000 },
+  { type: "intro", title: "You're all set!", lead: "Jump in, check in with your name, and start studying.", duration: 4000 },
+];
+
+let guideTimeoutId = null;
+function clearGuideTimer(){ if (guideTimeoutId) { clearTimeout(guideTimeoutId); guideTimeoutId = null; } }
+function scheduleGuideAdvance(){
+  clearGuideTimer();
+  if (state.view !== "onboarding-guide") return;
+  const slide = GUIDE_SLIDES[state.guideSlideIndex];
+  if (!slide) return;
+  guideTimeoutId = setTimeout(() => {
+    if (state.view !== "onboarding-guide") return;
+    if (document.querySelector(".modal-overlay, .sidebar-overlay")) { scheduleGuideAdvance(); return; }
+    if (state.guideSlideIndex >= GUIDE_SLIDES.length - 1) {
+      finishGuide();
+    } else {
+      state.guideSlideIndex++;
+      render();
+    }
+  }, slide.duration);
+}
+function finishGuide(){
+  clearGuideTimer();
+  const list = loadEmployees();
+  const emp = list.find(e => e.id === state.currentEmployeeId);
+  if (emp) {
+    emp.hasSeenGuide = true;
+    saveEmployees(list);
+    fbPush("employees", emp.id, emp);
+  }
+  if (isMaintenanceOn() && !isAdminUser()) { showMaintenanceScreen(); return; }
+  state.view = "dashboard";
+  render();
+}
+
 const ADMIN_EMPLOYEE_NAME = "logan keller"; // lowercase, trimmed — matched against the checked-in name
 const AVATAR_OPTIONS = ["🦊","🐼","🐸","🦁","🐵","🐨","🦄","🐶","🐱","🦉","🐧","🐙","🐝","🦖","🐢","🐯","🐻","🦋","🐳","🐷"];
 function employeeAvatar(emp){ return (emp && emp.avatar) || "🙂"; }
@@ -854,6 +939,50 @@ function viewPinGate(){
 }
 
 /* ---------------- Leaderboard & personal progress ---------------- */
+function viewOnboardingGuide(){
+  const slide = GUIDE_SLIDES[state.guideSlideIndex] || GUIDE_SLIDES[0];
+  const isIntro = slide.type === "intro";
+  const body = slide.steps
+    ? `<ul style="list-style:none;padding:0;margin:0;display:grid;gap:10px;">${slide.steps.map((t,i)=>`
+        <li style="display:flex;gap:12px;align-items:flex-start;background:var(--bg);border-radius:10px;padding:12px 14px;">
+          <span style="width:22px;height:22px;border-radius:50%;background:var(--blue);color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;">${i+1}</span>
+          <span style="font-size:14px;line-height:1.55;color:var(--blueDark);">${t}</span>
+        </li>`).join("")}</ul>`
+    : slide.grid
+      ? `<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">${slide.grid.map(([t,d])=>`
+          <div style="border:1px solid var(--border);border-radius:10px;padding:12px 14px;">
+            <div style="font-weight:700;font-size:13.5px;color:var(--blueDark);margin-bottom:3px;">${esc(t)}</div>
+            <div style="font-size:12.5px;color:var(--gray);line-height:1.5;">${esc(d)}</div>
+          </div>`).join("")}</div>`
+      : "";
+
+  return `
+    <div style="min-height:65vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px 0;">
+      <div class="cert-slide" style="max-width:600px;width:100%;">
+        <div class="wd-card" style="padding:40px 44px;${isIntro ? "background:var(--blueDark);" : ""}">
+          ${isIntro ? `
+            <div style="text-align:center;">
+              ${logoMark(64)}
+              <h1 class="wd-h" style="color:#fff;font-size:28px;margin:14px 0 8px;">${esc(slide.title)}</h1>
+              <p style="color:#B9C6D9;font-size:15px;max-width:420px;margin:0 auto;">${esc(slide.lead)}</p>
+            </div>
+          ` : `
+            <div style="width:52px;height:52px;border-radius:14px;background:linear-gradient(135deg,#F4990B22,#FDBA5822);display:flex;align-items:center;justify-content:center;font-size:26px;margin-bottom:16px;">${slide.icon}</div>
+            <span style="font-size:11px;color:var(--orange);font-weight:700;letter-spacing:1px;">${slide.step}</span>
+            <h2 class="wd-h" style="font-size:24px;margin:6px 0 12px;">${esc(slide.title)}</h2>
+            ${slide.lead ? `<p style="font-size:14.5px;color:var(--gray);line-height:1.6;margin:0 0 18px;">${esc(slide.lead)}</p>` : `<div style="height:6px;"></div>`}
+            ${body}
+          `}
+        </div>
+      </div>
+      <div style="display:flex;gap:6px;margin-top:20px;">
+        ${GUIDE_SLIDES.map((_,i) => `<button data-action="guide-goto" data-index="${i}" style="width:${i===state.guideSlideIndex?"20px":"7px"};height:7px;border-radius:99px;border:none;background:${i<=state.guideSlideIndex?"var(--orange)":"var(--border)"};cursor:pointer;transition:width .2s ease;padding:0;"></button>`).join("")}
+      </div>
+      <button data-action="guide-skip" class="btn-ghost" style="margin-top:14px;">Skip intro</button>
+    </div>
+  `;
+}
+
 function viewLeaderboard(){
   const employees = loadEmployees();
   const me = employees.find(e => e.id === state.currentEmployeeId);
@@ -1271,6 +1400,7 @@ let state = {
   leaderboardCarouselIndex: 0,
   pinRegAvatar: AVATAR_OPTIONS[Math.floor(Math.random() * AVATAR_OPTIONS.length)],
   avatarModalOpen: false,
+  guideSlideIndex: 0,
   importModalOpen: false,
   importError: null,
   extractedText: "",
@@ -1379,6 +1509,7 @@ function render(){
     });
     setTimeout(() => { main.classList.remove("view-enter", "view-enter-active"); }, 300);
   }
+  if (state.view === "onboarding-guide") scheduleGuideAdvance();
 }
 
 function renderView(){
@@ -1392,6 +1523,7 @@ function renderView(){
     case "admin-hub": return viewAdminHub();
     case "pin-gate": return viewPinGate();
     case "leaderboard": return viewLeaderboard();
+    case "onboarding-guide": return viewOnboardingGuide();
     default: return "";
   }
 }
@@ -2219,7 +2351,8 @@ async function handleAction(action, el){
         try { sessionStorage.setItem(CURRENT_EMPLOYEE_KEY, emp.id); } catch(e) {}
         state.pinGateSelectedId = null; state.pinGateError = null;
         if (isMaintenanceOn() && !isAdminUser()) { showMaintenanceScreen(); return; }
-        state.view = "dashboard";
+        state.guideSlideIndex = 0;
+        state.view = emp.hasSeenGuide === false ? "onboarding-guide" : "dashboard";
         render();
       } else {
         state.pinGateError = "Incorrect PIN.";
@@ -2244,7 +2377,7 @@ async function handleAction(action, el){
         render(); return;
       }
       const hash = await sha256Hex(name.toLowerCase() + "|" + pin);
-      const newEmp = { id: uid(), name, pinHash: hash, avatar: state.pinRegAvatar, createdAt: Date.now() };
+      const newEmp = { id: uid(), name, pinHash: hash, avatar: state.pinRegAvatar, createdAt: Date.now(), hasSeenGuide: false };
       employees.push(newEmp);
       saveEmployees(employees);
       fbPush("employees", newEmp.id, newEmp);
@@ -2252,7 +2385,8 @@ async function handleAction(action, el){
       try { sessionStorage.setItem(CURRENT_EMPLOYEE_KEY, newEmp.id); } catch(e) {}
       state.pinGateRegistering = false; state.pinGateError = null;
       if (isMaintenanceOn() && !isAdminUser()) { showMaintenanceScreen(); return; }
-      state.view = "dashboard";
+      state.guideSlideIndex = 0;
+      state.view = newEmp.hasSeenGuide === false ? "onboarding-guide" : "dashboard";
       render();
       return;
     }
@@ -2270,6 +2404,13 @@ async function handleAction(action, el){
       state.profileMenuOpen = false; render(); return;
     case "profile-my-progress":
       state.profileMenuOpen = false; state.view = "leaderboard"; state.leaderboardTab = "mine"; render(); return;
+    case "guide-goto":
+      state.guideSlideIndex = parseInt(el.getAttribute("data-index"), 10) || 0;
+      render();
+      return;
+    case "guide-skip":
+      finishGuide();
+      return;
     case "pin-reg-avatar-select":
       state.pinRegAvatar = el.getAttribute("data-avatar"); render(); return;
     case "open-avatar-modal":
@@ -2547,6 +2688,7 @@ function startApp(){
     const savedEmp = savedEmployeeId ? loadEmployees().find(e => e.id === savedEmployeeId) : null;
     if (savedEmp && !savedEmp.suspended) {
       state.currentEmployeeId = savedEmployeeId;
+      if (savedEmp.hasSeenGuide === false) { state.guideSlideIndex = 0; state.view = "onboarding-guide"; }
     } else {
       if (savedEmp && savedEmp.suspended) { try { sessionStorage.removeItem(CURRENT_EMPLOYEE_KEY); } catch(e) {} }
       state.view = "pin-gate";
