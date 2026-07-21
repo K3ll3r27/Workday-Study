@@ -100,6 +100,9 @@
   @keyframes certSlideIn{from{opacity:0;transform:translateX(32px);}to{opacity:1;transform:translateX(0);}}
   @media (prefers-reduced-motion: reduce){ .cert-slide{animation:none;} }
 </style>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 </head>
 <body>
 <div id="login-gate">
@@ -147,6 +150,60 @@ const STARTER_SET = {
   ]
 };
 
+/* ---------------- Firebase (shared cloud sync) ---------------- */
+const firebaseConfig = {
+  apiKey: "AIzaSyCfZnKsQn4j22NRNrCIWTJO9WZG1DZOo_k",
+  authDomain: "workday-study-d9a55.firebaseapp.com",
+  projectId: "workday-study-d9a55",
+  storageBucket: "workday-study-d9a55.firebasestorage.app",
+  messagingSenderId: "279501770579",
+  appId: "1:279501770579:web:be60f2d921b47c99c39ba6",
+};
+let fbDb = null;
+let fbReady = false;
+const fbAuthReady = (async () => {
+  try {
+    firebase.initializeApp(firebaseConfig);
+    fbDb = firebase.firestore();
+    await firebase.auth().signInAnonymously();
+    fbReady = true;
+  } catch (e) {
+    console.error("Firebase unavailable — falling back to local-only storage.", e);
+    fbReady = false;
+  }
+})();
+
+// Best-effort helpers: every call is wrapped so a Firebase hiccup (offline,
+// rules issue, etc.) never breaks the app — it just quietly stays local-only.
+async function fbPull(collection){
+  await fbAuthReady;
+  if (!fbReady || !fbDb) return null;
+  try {
+    const snap = await fbDb.collection(collection).get();
+    return snap.docs.map(d => d.data());
+  } catch (e) { console.error("fbPull failed:", collection, e); return null; }
+}
+async function fbPullDoc(collection, id){
+  await fbAuthReady;
+  if (!fbReady || !fbDb) return null;
+  try {
+    const doc = await fbDb.collection(collection).doc(id).get();
+    return doc.exists ? doc.data() : null;
+  } catch (e) { console.error("fbPullDoc failed:", collection, id, e); return null; }
+}
+async function fbPush(collection, id, data){
+  await fbAuthReady;
+  if (!fbReady || !fbDb) return;
+  try { await fbDb.collection(collection).doc(String(id)).set(data); }
+  catch (e) { console.error("fbPush failed:", collection, id, e); }
+}
+async function fbRemove(collection, id){
+  await fbAuthReady;
+  if (!fbReady || !fbDb) return;
+  try { await fbDb.collection(collection).doc(String(id)).delete(); }
+  catch (e) { console.error("fbRemove failed:", collection, id, e); }
+}
+
 const STORAGE_KEY = "wd_study_sets_v1";
 const FOLDERS = ["HCM Core", "Supply Chain", "Financial", "Learning and Talent"];
 const TICKET_CATEGORIES = ["Bug", "Feature request", "Content issue", "Other"];
@@ -177,6 +234,22 @@ function saveSets(sets){
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(sets)); } catch(e) {}
 }
 
+function safeRender(){
+  if (document.querySelector(".modal-overlay")) return;
+  const active = document.activeElement;
+  if (active && ["INPUT","TEXTAREA","SELECT"].includes(active.tagName)) return;
+  render();
+}
+
+async function syncSetsFromCloud(){
+  const cloud = await fbPull("sets");
+  if (cloud === null) return;
+  if (cloud.length === 0) { state.sets.forEach(s => fbPush("sets", s.id, s)); return; }
+  state.sets = cloud;
+  saveSets(state.sets);
+  safeRender();
+}
+
 /* ---------------- Feedback / future-fixes notes ---------------- */
 const FEEDBACK_KEY = "wd_feedback_v1";
 /* ---------------- Employee identity & progress tracking ---------------- */
@@ -190,11 +263,37 @@ function loadEmployees(){
 function saveEmployees(list){
   try { localStorage.setItem(EMPLOYEES_KEY, JSON.stringify(list)); } catch(e) {}
 }
+async function syncEmployeesFromCloud(){
+  const cloud = await fbPull("employees");
+  if (cloud === null) return;
+  const local = loadEmployees();
+  if (cloud.length === 0) { local.forEach(e => fbPush("employees", e.id, e)); return; }
+  const merged = [...cloud];
+  local.forEach(le => { if (!merged.some(ce => ce.id === le.id)) merged.push(le); });
+  saveEmployees(merged);
+  safeRender();
+}
 function loadProgress(){
   try { const raw = localStorage.getItem(PROGRESS_KEY); return raw ? JSON.parse(raw) : {}; } catch(e) { return {}; }
 }
 function saveProgress(obj){
   try { localStorage.setItem(PROGRESS_KEY, JSON.stringify(obj)); } catch(e) {}
+}
+async function syncProgressFromCloud(){
+  await fbAuthReady;
+  if (!fbReady || !fbDb) return;
+  try {
+    const snap = await fbDb.collection("progress").get();
+    if (snap.empty) {
+      const local = loadProgress();
+      Object.keys(local).forEach(empId => fbPush("progress", empId, local[empId]));
+      return;
+    }
+    const merged = {};
+    snap.docs.forEach(d => { merged[d.id] = d.data(); });
+    saveProgress(merged);
+    safeRender();
+  } catch (e) { console.error("syncProgressFromCloud failed:", e); }
 }
 function getEmployeeProgress(progressStore, employeeId){
   if (!progressStore[employeeId]) {
@@ -208,6 +307,7 @@ function recordMastered(employeeId, setId, cardId){
   if (!p.mastered[setId]) p.mastered[setId] = [];
   if (!p.mastered[setId].includes(cardId)) p.mastered[setId].push(cardId);
   saveProgress(store);
+  fbPush("progress", employeeId, p);
 }
 function recordLearnAnswer(employeeId, correct){
   const store = loadProgress();
@@ -215,12 +315,14 @@ function recordLearnAnswer(employeeId, correct){
   p.learnTotal++;
   if (correct) p.learnCorrect++;
   saveProgress(store);
+  fbPush("progress", employeeId, p);
 }
 function addStudyTime(employeeId, ms){
   const store = loadProgress();
   const p = getEmployeeProgress(store, employeeId);
   p.totalTimeMs += ms;
   saveProgress(store);
+  fbPush("progress", employeeId, p);
 }
 function formatDuration(ms){
   const mins = Math.round(ms / 60000);
@@ -251,6 +353,13 @@ function loadCertificates(){
 }
 function saveCertificates(list){
   localStorage.setItem(CERTIFICATES_KEY, JSON.stringify(list)); // let quota errors bubble up to the caller
+}
+async function syncCertificatesFromCloud(){
+  const cloud = await fbPull("certificates");
+  if (cloud === null) return;
+  if (cloud.length === 0) { loadCertificates().forEach(c => fbPush("certificates", c.id, c)); return; }
+  saveCertificates(cloud);
+  safeRender();
 }
 // Resizes + recompresses an image client-side before it ever touches storage,
 // since raw phone photos would blow through localStorage's ~5-10MB cap fast.
@@ -291,6 +400,13 @@ function loadFeedback(){
 }
 function saveFeedback(list){
   try { localStorage.setItem(FEEDBACK_KEY, JSON.stringify(list)); } catch(e) {}
+}
+async function syncFeedbackFromCloud(){
+  const cloud = await fbPull("feedback");
+  if (cloud === null) return;
+  if (cloud.length === 0) { loadFeedback().forEach(t => fbPush("feedback", t.id, t)); return; }
+  saveFeedback(cloud);
+  safeRender();
 }
 
 /* ---------------- Import from Claude (document -> flashcards) ---------------- */
@@ -979,12 +1095,14 @@ function persistActiveSetEdit(setObj){
   const clean = {...setObj, updatedAt: Date.now()};
   if (idx >= 0) state.sets[idx] = clean; else state.sets.push(clean);
   saveSets(state.sets);
-  showToast("Saved on this device.");
+  fbPush("sets", clean.id, clean);
+  showToast("Saved — syncing with your team.");
 }
 
 function deleteSet(id){
   state.sets = state.sets.filter(s => s.id !== id);
   saveSets(state.sets);
+  fbRemove("sets", id);
   showToast("Set deleted.");
   render();
 }
@@ -1577,13 +1695,15 @@ async function handleAction(action, el){
       const prioSel = document.getElementById("feedback-priority");
       const text = t ? t.value.trim() : "";
       if (!text) return;
-      state.feedback.push({
+      const newTicket = {
         id: uid(), text, at: Date.now(),
         category: catSel ? catSel.value : "Other",
         priority: prioSel ? prioSel.value : "Medium",
         status: "Open",
-      });
+      };
+      state.feedback.push(newTicket);
       saveFeedback(state.feedback);
+      fbPush("feedback", newTicket.id, newTicket);
       render();
       return;
     }
@@ -1591,6 +1711,7 @@ async function handleAction(action, el){
       const id = el.getAttribute("data-id");
       state.feedback = state.feedback.filter(n => n.id !== id);
       saveFeedback(state.feedback);
+      fbRemove("feedback", id);
       render();
       return;
     }
@@ -1598,7 +1719,7 @@ async function handleAction(action, el){
       const id = el.getAttribute("data-id");
       const status = el.getAttribute("data-status");
       const t = state.feedback.find(x => x.id === id);
-      if (t) { t.status = status; saveFeedback(state.feedback); }
+      if (t) { t.status = status; saveFeedback(state.feedback); fbPush("feedback", t.id, t); }
       render();
       return;
     }
@@ -1610,6 +1731,7 @@ async function handleAction(action, el){
       const id = el.getAttribute("data-id");
       const list = loadCertificates().filter(c => c.id !== id);
       saveCertificates(list);
+      fbRemove("certificates", id);
       showToast("Certificate removed.");
       render();
       return;
@@ -1788,6 +1910,7 @@ async function handleAction(action, el){
       const newEmp = { id: uid(), name, pinHash: hash, createdAt: Date.now() };
       employees.push(newEmp);
       saveEmployees(employees);
+      fbPush("employees", newEmp.id, newEmp);
       state.currentEmployeeId = newEmp.id;
       try { sessionStorage.setItem(CURRENT_EMPLOYEE_KEY, newEmp.id); } catch(e) {}
       state.pinGateRegistering = false; state.pinGateError = null;
@@ -1825,7 +1948,8 @@ async function handleAction(action, el){
       if (!certification) { state.certError = "Pick which certification this is."; render(); return; }
       if (!dateEarned) { state.certError = "Add the date you earned it."; render(); return; }
       const list = loadCertificates();
-      list.push({ id: uid(), employeeId: emp.id, employeeName: emp.name, photo: state.certPhotoDataUrl, certification, dateEarned, submittedAt: Date.now() });
+      const newCert = { id: uid(), employeeId: emp.id, employeeName: emp.name, photo: state.certPhotoDataUrl, certification, dateEarned, submittedAt: Date.now() };
+      list.push(newCert);
       try {
         saveCertificates(list);
       } catch(e) {
@@ -1833,6 +1957,7 @@ async function handleAction(action, el){
         render();
         return;
       }
+      fbPush("certificates", newCert.id, newCert);
       state.certModalOpen = false; state.certPhotoDataUrl = null; state.certError = null;
       showToast("Certificate posted!");
       render();
@@ -2063,6 +2188,13 @@ function startApp(){
     setTimeout(() => splash.remove(), 450);
   }, 600);
   setupActivityTracking();
+  // Pull the latest shared data in the background — the app is already usable
+  // locally, this just brings it up to date with what the team has added.
+  syncSetsFromCloud();
+  syncEmployeesFromCloud();
+  syncCertificatesFromCloud();
+  syncFeedbackFromCloud();
+  syncProgressFromCloud();
   setInterval(() => {
     if (state.view !== "dashboard") return;
     if (document.querySelector(".modal-overlay")) return; // any modal open (e.g. admin passcode) — don't wipe it out
