@@ -904,13 +904,6 @@ function viewAdminHub(){
       `}
     </div>
     <div class="wd-card" style="padding:20px;max-width:480px;margin-top:14px;">
-      <p style="font-size:12.5px;font-weight:700;color:var(--blueDark);margin:0 0 8px;">STAY LOGGED IN</p>
-      <p style="font-size:13.5px;color:var(--gray);margin:0 0 14px;line-height:1.6;">${isInactivityLockoutDisabled()
-        ? "The 5-minute inactivity timeout is off for your profile — you won't get kicked back to login while you're working on updates."
-        : "By default, everyone (including you) gets logged out after 5 minutes idle. Turn this off just for yourself while you're doing admin work, so it doesn't interrupt you."}</p>
-      <button class="btn-secondary" data-action="toggle-admin-timeout" data-enable="${isInactivityLockoutDisabled() ? "0" : "1"}">${isInactivityLockoutDisabled() ? "Turn timeout back on" : "Disable timeout for me"}</button>
-    </div>
-    <div class="wd-card" style="padding:20px;max-width:480px;margin-top:14px;">
       <p style="font-size:12.5px;font-weight:700;color:var(--blueDark);margin:0 0 8px;">BACKUP</p>
       <p style="font-size:13.5px;color:var(--gray);margin:0 0 14px;line-height:1.6;">Download everything currently in the shared database — sets, profiles, progress, certificates, and tickets — as one file. Cheap insurance in case anything ever needs to be restored.</p>
       <button class="btn-secondary" data-action="export-backup" id="backup-btn">Download backup</button>
@@ -2348,14 +2341,6 @@ async function handleAction(action, el){
       }
       return;
     }
-    case "toggle-admin-timeout": {
-      if (!isAdminUser()) return;
-      const enable = el.getAttribute("data-enable") === "1";
-      setInactivityLockoutDisabled(enable);
-      showToast(enable ? "Inactivity timeout is off for you." : "Inactivity timeout is back on.");
-      render();
-      return;
-    }
     case "open-reset-pin":
       if (!isAdminUser()) return;
       state.resetPinEmployeeId = el.getAttribute("data-id"); state.resetPinError = null; render(); return;
@@ -3018,14 +3003,6 @@ function setupActivityTracking(){
       if (now - lastWrite > 3000) { lastWrite = now; recordActivity(); }
     }, { passive: true });
   });
-  // Periodically check whether the inactivity window has been exceeded —
-  // catches both "sat idle" and "closed the tab and came back later".
-  setInterval(() => {
-    if (isAdminUser() && isInactivityLockoutDisabled()) return;
-    if (Date.now() - getLastActivity() > INACTIVITY_LIMIT_MS) {
-      forceLogout("Your session timed out after 5 minutes — please log in again.");
-    }
-  }, 15000);
   // Credit active study time to whoever is checked in, in 30s increments,
   // but only while they've interacted recently (not just sitting idle).
   setInterval(() => {
@@ -3080,15 +3057,11 @@ function initLoginGate(){
 
   let unlocked = false;
   try { unlocked = sessionStorage.getItem(LOGIN_KEY) === "1"; } catch(e) {}
-  const withinWindow = unlocked && (Date.now() - getLastActivity() < INACTIVITY_LIMIT_MS);
 
-  if (withinWindow) {
+  if (unlocked) {
     gate.style.display = "none";
     startApp();
     return;
-  }
-  if (unlocked && !withinWindow) {
-    clearSession(); // stale session — require login again
   }
 
   const userInput = document.getElementById("login-username");
