@@ -1896,8 +1896,10 @@ function topBar(pct, label, showShuffle){
 // picker, since custom wrong answers only make sense as wrong terms.
 function buildDistractorsForCard(c, cards, direction){
   const customTerms = (c.customWrongTerms || []).filter(Boolean);
-  if (direction !== "termToDef" && customTerms.length > 0) {
-    const customOpts = customTerms.slice(0, 3).map(t => ({ id: uid(), term: t, definition: "", isCustom: true }));
+  if (customTerms.length > 0) {
+    // Same custom text is used for both the "term" and "definition" slots so
+    // it displays correctly no matter which direction someone is quizzed in.
+    const customOpts = customTerms.slice(0, 3).map(t => ({ id: uid(), term: t, definition: t, isCustom: true }));
     if (customOpts.length < 3) {
       const fallback = pickHardDistractors(c, cards, 3 - customOpts.length);
       return [...customOpts, ...fallback];
